@@ -3,65 +3,62 @@ package com.olexyn.ensync;
 import com.olexyn.ensync.artifacts.DataRoot;
 import com.olexyn.ensync.artifacts.StateFile;
 import com.olexyn.ensync.artifacts.SyncDirectory;
-import com.olexyn.ensync.artifacts.SyncBundle;
 
-import java.io.File;
-import java.util.Map.Entry;
 import java.util.logging.Logger;
-
 
 
 public class Flow implements Runnable {
 
     private static final Logger LOGGER = LogUtil.get(Flow.class);
 
+    public static final long POLLING_PAUSE = 400;
 
-    Tools tools = new Tools();
-
-    public long pollingPause = 200;
-
-
-
+    /**
+     *
+     */
+    @Override
     public void run() {
 
         while (true) {
 
-            synchronized(DataRoot.get()) {
+            synchronized(DataRoot.getSyncBundles()) {
 
                 readOrMakeStateFile();
 
-                for (Entry<String, SyncBundle> syncMapEntry : DataRoot.get().entrySet()) {
-
-                    for (Entry<String, SyncDirectory> SDEntry : syncMapEntry.getValue().syncDirectories.entrySet()) {
-
-                        doSyncDirectory(SDEntry.getValue());
+                DataRoot.getSyncBundles().forEach(
+                    syncBundle -> {
+                        var syncDirectories = syncBundle.getSyncDirectories();
+                        syncDirectories.forEach(this::doSyncDirectory);
                     }
-                }
+                );
             }
+
             try {
-                System.out.println("Pausing... for " + pollingPause + "ms.");
-                Thread.sleep(pollingPause);
+                System.out.println("Pausing... for " + POLLING_PAUSE + "ms.");
+                Thread.sleep(POLLING_PAUSE);
             } catch (InterruptedException ignored) { }
         }
     }
 
-
-    private void doSyncDirectory(SyncDirectory SD) {
+    /**
+     *
+     */
+    private void doSyncDirectory(SyncDirectory sd) {
         LOGGER.info("READ");
-        SD.readStateFromFS();
+        sd.readStateFromFS();
 
-        SD.listCreated = SD.makeListOfLocallyCreatedFiles();
-        SD.listDeleted = SD.makeListOfLocallyDeletedFiles();
-        SD.listModified = SD.makeListOfLocallyModifiedFiles();
 
-        SD.doCreateOpsOnOtherSDs();
-        SD.doDeleteOpsOnOtherSDs();
-        SD.doModifyOpsOnOtherSDs();
+        sd.makeListOfLocallyCreatedFiles();
+        sd.makeListOfLocallyDeletedFiles();
+        sd.makeListOfLocallyModifiedFiles();
 
-        SD.writeStateFile(new StateFile(SD.path));
+        sd.doCreateOpsOnOtherSDs();
+        sd.doDeleteOpsOnOtherSDs();
+        sd.doModifyOpsOnOtherSDs();
+
+
+        sd.writeStateFile(new StateFile(sd.directoryPath));
     }
-
-
 
     /**
      * For every single SyncDirectory try to read it's StateFile. <p>
@@ -70,13 +67,14 @@ public class Flow implements Runnable {
     private void readOrMakeStateFile() {
         DataRoot.get().values().forEach(syncBundle -> {
             for (var sd : syncBundle.syncDirectories.values()) {
-                var stateFile = new StateFile(sd.path);
+                var stateFile = new StateFile(sd.directoryPath);
                 if (stateFile.exists()) {
                     LOGGER.info("READ-STATE-FILE-" + sd.readStateFile());
                 } else {
-                    sd.writeStateFile(new StateFile(sd.path));
+                    sd.writeStateFile(new StateFile(sd.directoryPath));
                 }
             }
         });
     }
+
 }

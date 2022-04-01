@@ -4,3 +4,4 @@
 /ensync.iml
 *.xlsx#
 testfile.txt
+*.log*

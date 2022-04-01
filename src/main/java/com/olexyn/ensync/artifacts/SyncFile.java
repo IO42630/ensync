@@ -1,7 +1,6 @@
 package com.olexyn.ensync.artifacts;
 
 import java.io.File;
-import java.util.Map;
 
 public class SyncFile extends File {
 
@@ -16,7 +15,7 @@ public class SyncFile extends File {
 
         super(pathname);
         this.sd = sd;
-        relativePath = this.getPath().replace(sd.path, "");
+        relativePath = this.getPath().replace(sd.directoryPath, "");
     }
 
     public void setTimeModifiedFromStateFile(long value) {
@@ -39,13 +38,26 @@ public class SyncFile extends File {
      * If a File never existed, it will have time = 0, and thus will always be overwritten.
      */
     public long getTimeModified(){
-        if (this.exists()){
+        if (exists()) {
             return lastModified();
         }
 
-        if (sd.readStateFile().get(this.getPath())!=null){
+        if (sd.readStateFile().get(getPath()) != null) {
             return getTimeModifiedFromStateFile();
         }
-        return  0;
+        return 0;
     }
+
+    public boolean isNewer(SyncFile otherFile) {
+        return this.getTimeModified() >= otherFile.getTimeModified();
+    }
+
+    public boolean isOlder(SyncFile otherFile) {
+        return !isNewer(otherFile);
+    }
+
+    public  SyncFile otherFile(SyncDirectory otherSd) {
+        return new SyncFile(otherSd, otherSd.directoryPath + this.relativePath);
+    }
+
 }

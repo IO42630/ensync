@@ -23,7 +23,7 @@ public class LogUtil {
         System.setProperty("java.util.logging.SimpleFormatter.format", format);
         Logger logger = Logger.getLogger(c.getName());
         try {
-            String dir = System.getProperty("user.dir") + "/log/main.log";
+            String dir = System.getProperty("user.dir") + "/logs/main.log";
             FileHandler fh = new FileHandler(dir, true);
             fh.setFormatter(new SimpleFormatter() {
                 @Override

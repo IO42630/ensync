@@ -4,6 +4,7 @@ package com.olexyn.ensync.artifacts;
 import com.olexyn.ensync.Tools;
 
 import java.io.File;
+import java.util.Collection;
 import java.util.HashMap;
 import java.util.Map;
 
@@ -23,6 +24,10 @@ public class SyncBundle {
      */
     public SyncBundle(String name) {
         this.name = name;
+    }
+
+    public Collection<SyncDirectory> getSyncDirectories() {
+        return syncDirectories.values();
     }
 
     /**

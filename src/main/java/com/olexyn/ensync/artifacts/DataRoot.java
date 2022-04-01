@@ -1,5 +1,6 @@
 package com.olexyn.ensync.artifacts;
 
+import java.util.Collection;
 import java.util.HashMap;
 
 public class DataRoot {
@@ -16,4 +17,9 @@ public class DataRoot {
         return mapOfSyncMaps;
 
     }
+
+    public static Collection<SyncBundle> getSyncBundles() {
+        return get().values();
+    }
+
 }
