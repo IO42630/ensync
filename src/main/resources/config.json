@@ -1,12 +1,8 @@
 {
-  "jsonMapOfSyncMaps": {
+  "dataRoot": {
     "syncMap1": [
-      "/home/user/test/a",
-      "/home/user/test/b"
-    ],
-    "syncMap2": [
-      "/home/user/test/c",
-      "/home/user/test/d"
+      "P:\\ensync-test",
+      "C:\\Users\\user\\home\\ensync-test"
     ]
   }
 }

@@ -7,6 +7,31 @@
 <br>
 <br>
 
+#### Design Goals
+* Least possible intrusion.
+    * work on top of a FS
+    * can be plugged / unpluggen anytime
+* Sync, not redundancy, not backup
+  * if user deletes File on one system, it will be deleted on all systems
+* Pretty simple rules:
+  * if same md5 keep older file
+  * if diff md5 keep newer file
+  * if created, create everywhere
+  * if deleted, delete everywhere
+
+#### Overview
+```
+DataRoot                a data root
+\_ SyncBundle :         a bundle of directories on the FS to be syncronized.
+   \_ SyncDirectory :   a directory on the FS.
+      \_ SyncFile :     a file on the FS.
+```
+
+#### StateFile
+* Used for tracking of file deletions.
+* Located in each `SyncDirectory\state.ensync`
+* Contains `<last edited> <relative file path>` for each file in the SyncDirectory.
+
 #### Demo<a name="demo"></a> 
 [![IMAGE ALT TEXT](http://img.youtube.com/vi/znR3jyM_4Ss/0.jpg)](https://youtu.be/znR3jyM_4Ss "ensync WIP Demo")
 

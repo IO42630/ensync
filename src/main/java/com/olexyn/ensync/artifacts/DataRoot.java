@@ -2,13 +2,13 @@ package com.olexyn.ensync.artifacts;
 
 import java.util.HashMap;
 
-public class MapOfSyncMaps {
+public class DataRoot {
 
-    private static HashMap<String, SyncMap> mapOfSyncMaps;
+    private static HashMap<String, SyncBundle> mapOfSyncMaps;
 
-    private MapOfSyncMaps() {}
+    private DataRoot() {}
 
-    public static HashMap<String, SyncMap> get() {
+    public static HashMap<String, SyncBundle> get() {
 
         if (mapOfSyncMaps == null) {
             mapOfSyncMaps = new HashMap<>();

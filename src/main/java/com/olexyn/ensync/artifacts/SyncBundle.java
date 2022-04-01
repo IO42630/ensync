@@ -11,7 +11,7 @@ import java.util.Map;
  * A SyncMap is a map of SyncDirectories. <br>
  * It synchronizes the SyncDirectories it contains.
  */
-public class SyncMap {
+public class SyncBundle {
 
     public String name;
     public Map<String, SyncDirectory> syncDirectories = new HashMap<>();
@@ -19,28 +19,27 @@ public class SyncMap {
     Tools tools = new Tools();
 
     /**
-     * @see SyncMap
+     * @see SyncBundle
      */
-    public SyncMap(String name) {
+    public SyncBundle(String name) {
         this.name = name;
     }
 
     /**
-     * Creates a new Syncdirectory. <p>
-     * Adds the created SyncDirectory to this SyncMap.
+     * Creates a new SyncDirectory. <p>
+     * Adds the created SyncDirectory to this SyncBundle.
      *
-     * @param realPath the path from which the SyncDirectory is created.
+     * @param path the path from which the SyncDirectory is created.
      * @see SyncDirectory
      */
-    public void addDirectory(String realPath) {
-        if (new File(realPath).isDirectory()) {
-            syncDirectories.put(realPath, new SyncDirectory(realPath, this));
+    public void addDirectory(String path) {
+        if (new File(path).isDirectory()) {
+            syncDirectories.put(path, new SyncDirectory(path, this));
         }
     }
 
     public void removeDirectory(String realPath) {
         syncDirectories.remove(realPath);
     }
-
 
 }

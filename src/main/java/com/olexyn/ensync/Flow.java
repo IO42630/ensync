@@ -1,15 +1,19 @@
 package com.olexyn.ensync;
 
-import com.olexyn.ensync.artifacts.MapOfSyncMaps;
+import com.olexyn.ensync.artifacts.DataRoot;
+import com.olexyn.ensync.artifacts.StateFile;
 import com.olexyn.ensync.artifacts.SyncDirectory;
-import com.olexyn.ensync.artifacts.SyncMap;
+import com.olexyn.ensync.artifacts.SyncBundle;
 
 import java.io.File;
 import java.util.Map.Entry;
+import java.util.logging.Logger;
 
 
 
 public class Flow implements Runnable {
+
+    private static final Logger LOGGER = LogUtil.get(Flow.class);
 
 
     Tools tools = new Tools();
@@ -17,18 +21,16 @@ public class Flow implements Runnable {
     public long pollingPause = 200;
 
 
-    private String state;
-
 
     public void run() {
 
         while (true) {
 
-            synchronized (MapOfSyncMaps.get()) {
+            synchronized(DataRoot.get()) {
 
                 readOrMakeStateFile();
 
-                for (Entry<String, SyncMap> syncMapEntry : MapOfSyncMaps.get().entrySet()) {
+                for (Entry<String, SyncBundle> syncMapEntry : DataRoot.get().entrySet()) {
 
                     for (Entry<String, SyncDirectory> SDEntry : syncMapEntry.getValue().syncDirectories.entrySet()) {
 
@@ -39,13 +41,13 @@ public class Flow implements Runnable {
             try {
                 System.out.println("Pausing... for " + pollingPause + "ms.");
                 Thread.sleep(pollingPause);
-            } catch (InterruptedException ignored) {}
+            } catch (InterruptedException ignored) { }
         }
     }
 
 
     private void doSyncDirectory(SyncDirectory SD) {
-        state = "READ";
+        LOGGER.info("READ");
         SD.readStateFromFS();
 
         SD.listCreated = SD.makeListOfLocallyCreatedFiles();
@@ -56,13 +58,9 @@ public class Flow implements Runnable {
         SD.doDeleteOpsOnOtherSDs();
         SD.doModifyOpsOnOtherSDs();
 
-        SD.writeStateFile(SD.path);
+        SD.writeStateFile(new StateFile(SD.path));
     }
 
-
-    public String getState() {
-        return state == null ? "NONE" : state;
-    }
 
 
     /**
@@ -70,22 +68,15 @@ public class Flow implements Runnable {
      * If the StateFile is missing, then create a StateFile.
      */
     private void readOrMakeStateFile() {
-        for (var syncMapEntry : MapOfSyncMaps.get().entrySet()) {
-            SyncMap syncMap = syncMapEntry.getValue();
-            state = syncMap.toString();
-
-            for (var stringSyncDirectoryEntry : syncMap.syncDirectories.entrySet()) {
-                SyncDirectory SD = stringSyncDirectoryEntry.getValue();
-                String path = SD.path;
-                String stateFilePath = tools.stateFilePath(path);
-
-                if (new File(stateFilePath).exists()) {
-                    state = "READ-STATE-FILE-" + SD.readStateFile();
+        DataRoot.get().values().forEach(syncBundle -> {
+            for (var sd : syncBundle.syncDirectories.values()) {
+                var stateFile = new StateFile(sd.path);
+                if (stateFile.exists()) {
+                    LOGGER.info("READ-STATE-FILE-" + sd.readStateFile());
                 } else {
-                    SD.writeStateFile(path);
+                    sd.writeStateFile(new StateFile(sd.path));
                 }
             }
-
-        }
+        });
     }
 }

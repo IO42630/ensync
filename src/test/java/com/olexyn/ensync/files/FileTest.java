@@ -2,11 +2,10 @@ package com.olexyn.ensync.files;
 
 import com.olexyn.ensync.Execute;
 import com.olexyn.ensync.Flow;
-import com.olexyn.ensync.OperationMode;
 import com.olexyn.ensync.Tools;
-import com.olexyn.ensync.artifacts.MapOfSyncMaps;
-import com.olexyn.ensync.artifacts.SyncMap;
-import com.olexyn.ensync.ui.UI;
+import com.olexyn.ensync.artifacts.DataRoot;
+import com.olexyn.ensync.artifacts.SyncBundle;
+import org.json.JSONException;
 import org.json.JSONObject;
 import org.junit.Assert;
 import org.junit.Test;
@@ -24,7 +23,7 @@ public class FileTest {
 
     final public static Thread FLOW_THREAD = new Thread(new Flow(), "flow");
     final private static Tools tools = new Tools();
-    final private HashMap<String, SyncMap> mapOfSyncMaps = MapOfSyncMaps.get();
+    final private HashMap<String, SyncBundle> mapOfSyncMaps = DataRoot.get();
 
     public long fileOpsPause = 800;
     public long assertPause = 4000;
@@ -85,19 +84,19 @@ public class FileTest {
      * Simple means with a static test-config.json, thus no SyncMaps are added at runtime.
      */
     @Test
-    public void doSimpleFileTests() {
+    public void doSimpleFileTests() throws JSONException {
 
         String configPath = System.getProperty("user.dir") + "/src/test/resources/test-config.json";
         String configString = tools.fileToString(new File(configPath));
         JSONObject jsonMapOfSyncMaps = new JSONObject(configString).getJSONObject("jsonMapOfSyncMaps");
-        for (String key : jsonMapOfSyncMaps.keySet()) {
-            SyncMap syncMap = new SyncMap(key);
-            for (Object jsonSyncDirPath : jsonMapOfSyncMaps.getJSONArray(key).toList()) {
-                syncMap.addDirectory(jsonSyncDirPath.toString());
-            }
-            MapOfSyncMaps.get().put(key, syncMap);
-
-        }
+//        for (String key : jsonMapOfSyncMaps.keySet()) {
+//            SyncMap syncMap = new SyncMap(key);
+//            for (Object jsonSyncDirPath : jsonMapOfSyncMaps.getJSONArray(key).toList()) {
+//                syncMap.addDirectory(jsonSyncDirPath.toString());
+//            }
+//            MapOfSyncMaps.get().put(key, syncMap);
+//
+//        }
 
 
         FLOW_THREAD.start();

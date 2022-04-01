@@ -125,19 +125,9 @@ public class Tools {
      * @param list <i>StringBuilder</i>
      */
     public void writeStringListToFile(String path, List<String> list) {
-        File file = new File(path);
-        File parent = new File(file.getParent());
-        if (!parent.exists()) {
-
-            x.execute(new String[]{"mkdir",
-                                   "-p",
-                                   parent.getPath()});
-        }
-
-
         try {
-            BufferedWriter bw = new BufferedWriter(new FileWriter(new File(path)));
-            StringBuilder sb = stringListToSb(list);
+            var bw = new BufferedWriter(new FileWriter(path));
+            var sb = stringListToSb(list);
             bw.write(sb.toString());
             bw.close();
         } catch (Exception e) {
@@ -145,7 +135,4 @@ public class Tools {
         }
     }
 
-    public String stateFilePath(String path) {
-        return "/tmp/ensync/state" + path.replace("/", "-");
-    }
 }

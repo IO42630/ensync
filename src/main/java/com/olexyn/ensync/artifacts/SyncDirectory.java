@@ -1,24 +1,33 @@
 package com.olexyn.ensync.artifacts;
 
 import com.olexyn.ensync.Execute;
+import com.olexyn.ensync.Flow;
+import com.olexyn.ensync.LogUtil;
 import com.olexyn.ensync.Tools;
 
 import java.io.File;
+import java.io.IOException;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.nio.file.Paths;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.logging.Logger;
 
 /**
  * A SyncDirectory is a singular occurrence of a directory in the filesystems.
  */
 public class SyncDirectory {
 
+    private static final Logger LOGGER = LogUtil.get(SyncDirectory.class);
+
     private String flowState;
     private SyncDirectory thisSD = this;
 
 
-    private final SyncMap syncMap;
+    private final SyncBundle syncMap;
     public String path = null;
 
     public Map<String, SyncFile> listCreated = new HashMap<>();
@@ -32,9 +41,9 @@ public class SyncDirectory {
     /**
      * Create a SyncDirectory from realPath.
      *
-     * @see SyncMap
+     * @see SyncBundle
      */
-    public SyncDirectory(String path, SyncMap syncMap) {
+    public SyncDirectory(String path, SyncBundle syncMap) {
 
         this.path = path;
         this.syncMap = syncMap;
@@ -70,7 +79,8 @@ public class SyncDirectory {
      */
     public Map<String, SyncFile> readStateFile() {
         Map<String, SyncFile> filemap = new HashMap<>();
-        List<String> lines = tools.fileToLines(new File(tools.stateFilePath(path)));
+        var stateFile = new StateFile(path);
+        List<String> lines = tools.fileToLines(new File(stateFile.getPath()));
 
         for (String line : lines) {
             // this is a predefined format: "modification-time path"
@@ -162,22 +172,24 @@ public class SyncDirectory {
      * QUERY state of the filesystem at realPath.
      * WRITE the state of the filesystem to file.
      */
-    public void writeStateFile(String path) {
+    public void writeStateFile(StateFile stateFile) {
         List<String> outputList = new ArrayList<>();
 
-
-        Execute.TwoBr find = x.execute(new String[]{"find",
-                                                    path});
-
-        List<String> pathList = tools.brToListString(find.output);
-
-
-        for (String filePath : pathList) {
-            long lastModified = new File(filePath).lastModified();
-            outputList.add("" + lastModified + " " + filePath);
+        try {
+            Files.walk(Paths.get(path))
+                .filter(Files::isRegularFile)
+                .map(Path::toFile)
+                .filter(file -> !file.getName().equals(Constants.STATE_FILE_NAME))
+                .forEach(file -> {
+                    String relativePath = file.getAbsolutePath()
+                        .replace(stateFile.getTargetPath(), "");
+                    outputList.add("" + file.lastModified() + " " + relativePath);
+                });
+        } catch (IOException e) {
+            LOGGER.severe("Could walk the file tree : StateFile will be empty.");
         }
 
-        tools.writeStringListToFile(tools.stateFilePath(path), outputList);
+        tools.writeStringListToFile(stateFile.getPath(), outputList);
     }
 
 
