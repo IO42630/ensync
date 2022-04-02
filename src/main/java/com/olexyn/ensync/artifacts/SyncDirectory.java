@@ -50,16 +50,16 @@ public class SyncDirectory {
 
 
     /**
-     * Get the current state by using the `find` command.
+     * Read the current state of the file system.
      */
-    public Map<String, SyncFile> readStateFromFS() {
+    public Map<String, SyncFile> readFileSystem() {
         //NOTE that the SyncFile().lastModifiedOld is not set here, so it is 0 by default.
-        Map<String, SyncFile> filemap = new HashMap<>();
-        getFiles()
+        return getFiles()
             .map(file -> new SyncFile(this, file.getAbsolutePath()))
-            .forEach(file -> filemap.put(file.getAbsolutePath(), file)
-        );
-        return filemap;
+            .collect(Collectors.toMap(
+                SyncFile::getRelativePath,
+                syncFile -> syncFile
+            ));
     }
 
 
@@ -91,12 +91,11 @@ public class SyncDirectory {
      * Compare the OLD and NEW pools.
      * List is cleared and created each time.
      */
-    public Map<String, SyncFile> makeListOfLocallyCreatedFiles() {
-
-        Map<String, SyncFile> fromA = readStateFromFS();
-        Map<String, SyncFile> substractB = readStateFile();
-
-        return tools.mapMinus(fromA, substractB);
+    public void fillListOfLocallyCreatedFiles() {
+        listCreated.clear();
+        var fromA = readFileSystem();
+        var substractB = readStateFile();
+        listCreated.putAll(tools.mapMinus(fromA, substractB));
     }
 
 
@@ -104,27 +103,20 @@ public class SyncDirectory {
      * Compare the OLD and NEW pools.
      * List is cleared and created each time.
      */
-    public Map<String, SyncFile> makeListOfLocallyDeletedFiles() {
-
+    public void makeListOfLocallyDeletedFiles() {
+        listDeleted.clear();
         var fromA = readStateFile();
-        var substractB = readStateFromFS();
-
+        var substractB = readFileSystem();
         var listDeleted = tools.mapMinus(fromA, substractB);
-
         Map<String, SyncFile> swap = new HashMap<>();
-
-
         for (var entry : listDeleted.entrySet()) {
-
             String key = entry.getKey();
             String parentKey = entry.getValue().getParent();
-
             if (listDeleted.containsKey(parentKey) || swap.containsKey(parentKey)) {
                 swap.put(key, listDeleted.get(key));
             }
         }
-
-        return tools.mapMinus(listDeleted, swap);
+        listDeleted.putAll(tools.mapMinus(listDeleted, swap));
     }
 
 
@@ -133,13 +125,11 @@ public class SyncDirectory {
      * List is cleared and created each time.
      */
     public void makeListOfLocallyModifiedFiles() {
-
-
-        Map<String, SyncFile> listModified = new HashMap<>();
+        listModified.clear();
 
         Map<String, SyncFile> stateFileMap = readStateFile();
 
-        for (var freshFileEntry : readStateFromFS().entrySet()) {
+        for (var freshFileEntry : readFileSystem().entrySet()) {
 
             String freshFileKey = freshFileEntry.getKey();
             SyncFile freshFile = freshFileEntry.getValue();
@@ -155,7 +145,6 @@ public class SyncDirectory {
             }
         }
     }
-
 
     /**
      * QUERY state of the filesystem at realPath.
@@ -241,6 +230,7 @@ public class SyncDirectory {
                     Path.of(thisFile.getPath()),
                     Path.of(otherFile.getPath())
                 );
+                otherFile.setLastModified(thisFile.lastModified());
             } catch (IOException e) {
                 LOGGER.severe("Could not copy file.");
             }

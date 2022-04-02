@@ -45,10 +45,10 @@ public class Flow implements Runnable {
      */
     private void doSyncDirectory(SyncDirectory sd) {
         LOGGER.info("READ");
-        sd.readStateFromFS();
+        sd.readFileSystem();
 
 
-        sd.makeListOfLocallyCreatedFiles();
+        sd.fillListOfLocallyCreatedFiles();
         sd.makeListOfLocallyDeletedFiles();
         sd.makeListOfLocallyModifiedFiles();
 

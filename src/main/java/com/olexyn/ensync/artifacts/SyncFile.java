@@ -1,21 +1,29 @@
 package com.olexyn.ensync.artifacts;
 
+import com.olexyn.ensync.LogUtil;
+
 import java.io.File;
+import java.util.logging.Logger;
 
 public class SyncFile extends File {
 
+    private static final Logger LOGGER = LogUtil.get(SyncFile.class);
 
     // Very IMPORTANT field. Allows to store lastModified as it is stored in the StateFile.
     public long timeModifiedFromStateFile = 0;
 
-    public String relativePath;
+    private String relativePath;
     private final SyncDirectory sd;
 
-    public SyncFile(SyncDirectory sd, String pathname) {
+    public SyncFile(SyncDirectory sd, String absolutePath) {
 
-        super(pathname);
+        super(absolutePath);
         this.sd = sd;
         relativePath = this.getPath().replace(sd.directoryPath, "");
+    }
+
+    public String getRelativePath() {
+        return relativePath;
     }
 
     public void setTimeModifiedFromStateFile(long value) {
@@ -23,10 +31,12 @@ public class SyncFile extends File {
     }
 
     public long getTimeModifiedFromStateFile() {
-        SyncFile record = sd.readStateFile().get(this.getPath());
-
-
-        return record == null ? 0 : record.timeModifiedFromStateFile;
+        SyncFile record = sd.readStateFile().get(getRelativePath());
+        if (record == null) {
+            LOGGER.severe("Did not find record for file in StateFile. Setting modifiedDate to MIN, thus 0");
+            return 0;
+        }
+        return  record.timeModifiedFromStateFile;
     }
 
     /**

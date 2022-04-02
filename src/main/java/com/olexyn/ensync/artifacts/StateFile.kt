@@ -5,7 +5,7 @@ import java.io.File
 class StateFile(val targetPath: String) {
 
     fun getPath(): String {
-        return targetPath + Constants.STATE_FILE_NAME
+        return targetPath + "/" + Constants.STATE_FILE_NAME
     }
 
     private fun getFile(): File {
@@ -13,7 +13,7 @@ class StateFile(val targetPath: String) {
     }
 
     fun exists(): Boolean {
-        return getFile().exists();
+        return getFile().exists()
     }
 
 }
