@@ -7,7 +7,9 @@ import com.olexyn.ensync.Tools;
 import com.olexyn.ensync.artifacts.SyncBundle;
 import com.olexyn.ensync.artifacts.SyncDirectory;
 import org.json.JSONException;
+import org.junit.After;
 import org.junit.Assert;
+import org.junit.Before;
 import org.junit.Test;
 
 import java.io.File;
@@ -35,11 +37,11 @@ public class FileTest {
 
     private final static Execute x = new Execute();
 
-    private static final String TEMP_DIR = System.getProperty("user.dir") + "/src/test/temp";
+    private static final Path TEMP_DIR = Path.of(System.getProperty("user.dir") + "/src/test/temp");
     private static final String RESOURCES_DIR = System.getProperty("user.dir") + "/src/test/resources";
     DateTimeFormatter dateTimeFormatter = DateTimeFormatter.ISO_LOCAL_DATE_TIME;
-    private static final String A_DIR = TEMP_DIR + "/a";
-    private static final String B_DIR = TEMP_DIR + "/b";
+    private static final Path A_DIR = TEMP_DIR.resolve("/a");
+    private static final Path B_DIR = TEMP_DIR.resolve("/b");
 
     private final TestFile aTestFile = new TestFile(A_DIR + "/testfile.txt");
     private final TestFile bTestFile = new TestFile(B_DIR + "/testfile.txt");
@@ -90,15 +92,28 @@ public class FileTest {
         }
     }
 
+    SyncBundle syncMap;
+    List<String> sideloadContentA;
+    List<String> sideloadContentB;
+
+    @Before
+    public void prepare() {
+        syncMap = new SyncBundle("testSyncBundle");
+        syncMap.addDirectory(A_DIR);
+        syncMap.addDirectory(B_DIR);
+    }
+
+    @After
+    public void reset() {
+
+    }
+
     /**
      * Perform the 15 test cases in TestCases.xlsx.
      * Simple means with a static test-config.json, thus no SyncMaps are added at runtime.
      */
     @Test
     public void doSimpleFileTests() throws JSONException {
-        SyncBundle syncMap = new SyncBundle("testSyncBundle");
-        syncMap.addDirectory(A_DIR);
-        syncMap.addDirectory(B_DIR);
 
 
         FLOW_THREAD.start();

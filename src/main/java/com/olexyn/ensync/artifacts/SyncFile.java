@@ -12,14 +12,14 @@ public class SyncFile extends File {
     // Very IMPORTANT field. Allows to store lastModified as it is stored in the StateFile.
     public long timeModifiedFromStateFile = 0;
 
-    private String relativePath;
+    private final String relativePath;
     private final SyncDirectory sd;
 
     public SyncFile(SyncDirectory sd, String absolutePath) {
 
         super(absolutePath);
         this.sd = sd;
-        relativePath = this.getPath().replace(sd.directoryPath, "");
+        relativePath = this.getPath().replace(sd.directoryPath.toString(), "");
     }
 
     public String getRelativePath() {

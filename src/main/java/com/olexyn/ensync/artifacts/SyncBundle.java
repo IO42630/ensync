@@ -4,6 +4,7 @@ package com.olexyn.ensync.artifacts;
 import com.olexyn.ensync.Tools;
 
 import java.io.File;
+import java.nio.file.Path;
 import java.util.Collection;
 import java.util.HashMap;
 import java.util.Map;
@@ -15,7 +16,7 @@ import java.util.Map;
 public class SyncBundle {
 
     public String name;
-    public Map<String, SyncDirectory> syncDirectories = new HashMap<>();
+    public Map<Path, SyncDirectory> syncDirectories = new HashMap<>();
 
     Tools tools = new Tools();
 
@@ -37,8 +38,8 @@ public class SyncBundle {
      * @param path the path from which the SyncDirectory is created.
      * @see SyncDirectory
      */
-    public void addDirectory(String path) {
-        if (new File(path).isDirectory()) {
+    public void addDirectory(Path path) {
+        if (path.toFile().isDirectory()) {
             syncDirectories.put(path, new SyncDirectory(path, this));
         }
     }

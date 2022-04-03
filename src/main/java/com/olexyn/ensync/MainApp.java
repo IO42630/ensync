@@ -7,6 +7,7 @@ import org.json.JSONException;
 import org.json.JSONObject;
 
 import java.io.File;
+import java.nio.file.Path;
 
 
 public class MainApp {
@@ -23,7 +24,7 @@ public class MainApp {
             SyncBundle syncBundle = new SyncBundle(bundleKey);
             dataRoot.getJSONArray(bundleKey).toList()
                 .forEach(
-                    directoryPath -> syncBundle.addDirectory(directoryPath.toString())
+                    directoryPath -> syncBundle.addDirectory(Path.of(directoryPath.toString()))
                 );
 
             DataRoot.get().put(bundleKey, syncBundle);

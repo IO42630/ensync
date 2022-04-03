@@ -26,7 +26,7 @@ public class SyncDirectory {
     private static final Logger LOGGER = LogUtil.get(SyncDirectory.class);
 
     private final SyncBundle syncMap;
-    public String directoryPath;
+    public Path directoryPath;
 
     public final Map<String, SyncFile> listCreated = new HashMap<>();
     public final Map<String, SyncFile> listDeleted = new HashMap<>();
@@ -41,7 +41,7 @@ public class SyncDirectory {
      *
      * @see SyncBundle
      */
-    public SyncDirectory(String directoryPath, SyncBundle syncMap) {
+    public SyncDirectory(Path directoryPath, SyncBundle syncMap) {
 
         this.directoryPath = directoryPath;
         this.syncMap = syncMap;
@@ -69,7 +69,7 @@ public class SyncDirectory {
     public Map<String, SyncFile> readStateFile() {
         Map<String, SyncFile> filemap = new HashMap<>();
         var stateFile = new StateFile(directoryPath);
-        List<String> lines = tools.fileToLines(new File(stateFile.getPath()));
+        List<String> lines = tools.fileToLines(stateFile.getPath().toFile());
 
         for (String line : lines) {
             // this is a predefined format: "modification-time path"
@@ -155,15 +155,15 @@ public class SyncDirectory {
         getFiles().forEach(
             file -> {
                 String relativePath = file.getAbsolutePath()
-                    .replace(stateFile.getTargetPath(), "");
+                    .replace(stateFile.getTargetPath().toString(), "");
                 outputList.add("" + file.lastModified() + " " + relativePath);
             });
-        tools.writeStringListToFile(stateFile.getPath(), outputList);
+        tools.writeStringListToFile(stateFile.getPath().toString(), outputList);
     }
 
     private Stream<File> getFiles() {
         try {
-            return Files.walk(Paths.get(directoryPath))
+            return Files.walk(directoryPath)
                 .filter(Files::isRegularFile)
                 .map(Path::toFile)
                 .filter(file -> !file.getName().equals(Constants.STATE_FILE_NAME));
