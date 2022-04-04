@@ -1,22 +1,30 @@
 package com.olexyn.ensync.artifacts;
 
-import com.olexyn.ensync.Execute;
 import com.olexyn.ensync.LogUtil;
 import com.olexyn.ensync.Tools;
 
 import java.io.File;
+import java.io.FileInputStream;
 import java.io.IOException;
+import java.math.BigInteger;
+import java.nio.file.CopyOption;
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.nio.file.Paths;
+import java.nio.file.StandardCopyOption;
+import java.security.MessageDigest;
+import java.security.NoSuchAlgorithmException;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Map.Entry;
 import java.util.logging.Logger;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
+
+import static com.olexyn.ensync.artifacts.Constants.EMPTY;
+import static com.olexyn.ensync.artifacts.Constants.SPACE;
 
 /**
  * A SyncDirectory is a singular occurrence of a directory in the filesystems.
@@ -24,17 +32,12 @@ import java.util.stream.Stream;
 public class SyncDirectory {
 
     private static final Logger LOGGER = LogUtil.get(SyncDirectory.class);
-
     private final SyncBundle syncMap;
     public Path directoryPath;
-
-    public final Map<String, SyncFile> listCreated = new HashMap<>();
-    public final Map<String, SyncFile> listDeleted = new HashMap<>();
-    public final Map<String, SyncFile> listModified = new HashMap<>();
-
-
+    public Map<String, SyncFile> listCreated = new HashMap<>();
+    public Map<String, SyncFile> listDeleted = new HashMap<>();
+    public Map<String, SyncFile> listModified = new HashMap<>();
     Tools tools = new Tools();
-    Execute x = new Execute();
 
     /**
      * Create a SyncDirectory from realPath.
@@ -42,10 +45,8 @@ public class SyncDirectory {
      * @see SyncBundle
      */
     public SyncDirectory(Path directoryPath, SyncBundle syncMap) {
-
         this.directoryPath = directoryPath;
         this.syncMap = syncMap;
-
     }
 
 
@@ -53,7 +54,6 @@ public class SyncDirectory {
      * Read the current state of the file system.
      */
     public Map<String, SyncFile> readFileSystem() {
-        //NOTE that the SyncFile().lastModifiedOld is not set here, so it is 0 by default.
         return getFiles()
             .map(file -> new SyncFile(this, file.getAbsolutePath()))
             .collect(Collectors.toMap(
@@ -62,24 +62,22 @@ public class SyncDirectory {
             ));
     }
 
-
     /**
-     * READ the contents of StateFile to Map.
+     * READ the contents of Record to Map.
      */
-    public Map<String, SyncFile> readStateFile() {
-        Map<String, SyncFile> filemap = new HashMap<>();
-        var stateFile = new StateFile(directoryPath);
-        List<String> lines = tools.fileToLines(stateFile.getPath().toFile());
+    public Map<String, RecordFile> readRecord() {
+        Map<String, RecordFile> filemap = new HashMap<>();
+        var record = new Record(directoryPath);
+        List<String> lines = tools.fileToLines(record.getPath().toFile());
 
         for (String line : lines) {
-            // this is a predefined format: "modification-time path"
-            String modTimeString = line.split(" ")[0];
-            long modTime = Long.parseLong(modTimeString);
+            // this is a predefined format: "<modification-time> <relative-path>"
+            var lineArr = line.split(SPACE);
+            long modTime = Long.parseLong(lineArr[0]);
+            String sFilePath = lineArr[1];
+            RecordFile sfile = new RecordFile(this, sFilePath);
 
-            String sFilePath = line.replace(modTimeString + " ", "");
-            SyncFile sfile = new SyncFile(this, sFilePath);
-
-            sfile.setTimeModifiedFromStateFile(modTime);
+            sfile.setTimeModifiedFromRecord(modTime);
 
             filemap.put(sFilePath, sfile);
         }
@@ -91,58 +89,48 @@ public class SyncDirectory {
      * Compare the OLD and NEW pools.
      * List is cleared and created each time.
      */
-    public void fillListOfLocallyCreatedFiles() {
-        listCreated.clear();
-        var fromA = readFileSystem();
-        var substractB = readStateFile();
-        listCreated.putAll(tools.mapMinus(fromA, substractB));
+    public Map<String, SyncFile> fillListOfLocallyCreatedFiles(Map<String, SyncFile> listFileSystem, Map<String, RecordFile> record) {
+        var listCreated = tools.setMinus(listFileSystem.keySet(), record.keySet());
+        return listCreated.stream().collect(Collectors.toMap(key -> key, listFileSystem::get));
     }
-
 
     /**
      * Compare the OLD and NEW pools.
      * List is cleared and created each time.
      */
-    public void makeListOfLocallyDeletedFiles() {
-        listDeleted.clear();
-        var fromA = readStateFile();
-        var substractB = readFileSystem();
-        var listDeleted = tools.mapMinus(fromA, substractB);
-        Map<String, SyncFile> swap = new HashMap<>();
-        for (var entry : listDeleted.entrySet()) {
-            String key = entry.getKey();
-            String parentKey = entry.getValue().getParent();
-            if (listDeleted.containsKey(parentKey) || swap.containsKey(parentKey)) {
-                swap.put(key, listDeleted.get(key));
-            }
-        }
-        listDeleted.putAll(tools.mapMinus(listDeleted, swap));
+    public Map<String, SyncFile> makeListOfLocallyDeletedFiles(Map<String, SyncFile> listFileSystem, Map<String, RecordFile> record) {
+        var listDeleted = tools.setMinus(record.keySet(), listFileSystem.keySet());
+        return listDeleted.stream().collect(Collectors.toMap(key -> key, record::get));
     }
-
 
     /**
      * Compare the OLD and NEW pools.
      * List is cleared and created each time.
      */
-    public void makeListOfLocallyModifiedFiles() {
-        listModified.clear();
+    public Map<String, SyncFile> makeListOfLocallyModifiedFiles(Map<String, SyncFile> listFileSystem) {
 
-        Map<String, SyncFile> stateFileMap = readStateFile();
-
-        for (var freshFileEntry : readFileSystem().entrySet()) {
-
-            String freshFileKey = freshFileEntry.getKey();
-            SyncFile freshFile = freshFileEntry.getValue();
-
-            if (freshFile.isDirectory()) { continue;} // no need to modify Directories, the Filesystem will do that, if a File changed.
-
-            // If KEY exists in OLD , thus FILE was NOT created.
-            boolean oldFileExists = stateFileMap.containsKey(freshFileKey);
-            boolean fileIsFresher = freshFile.getTimeModified() > freshFile.getTimeModifiedFromStateFile();
-
-            if (oldFileExists && fileIsFresher) {
-                listModified.put(freshFileKey, freshFile);
+        return listFileSystem.entrySet().stream().filter(
+            fileEntry -> {
+                String fileKey = fileEntry.getKey();
+                SyncFile file = fileEntry.getValue();
+                if (file.isDirectory()) { return false; } // no need to modify Directories, the Filesystem will do that, if a File changed.
+                boolean isKnown = readRecord().containsKey(fileKey); // If KEY exists in OLD , thus FILE was NOT created.
+                boolean isModified = file.lastModified() > file.lastModifiedFromRecord();
+                return isKnown && isModified;
             }
+        ).collect(Collectors.toMap(Entry::getKey, Entry::getValue));
+    }
+
+    private String getMd5(Path path) {
+        try (var fos = new FileInputStream(path.toFile())) {
+            var m = MessageDigest.getInstance("MD5");
+            byte[] data = fos.readAllBytes();
+            m.update(data, 0, data.length);
+            var i = new BigInteger(1, m.digest());
+            return String.format("%1$032X", i);
+        } catch (NoSuchAlgorithmException | IOException e) {
+            LOGGER.info("File not found.");
+            return null;
         }
     }
 
@@ -150,15 +138,21 @@ public class SyncDirectory {
      * QUERY state of the filesystem at realPath.
      * WRITE the state of the filesystem to file.
      */
-    public void writeStateFile(StateFile stateFile) {
+    public void writeRecord(Record record) {
         List<String> outputList = new ArrayList<>();
         getFiles().forEach(
             file -> {
                 String relativePath = file.getAbsolutePath()
-                    .replace(stateFile.getTargetPath().toString(), "");
-                outputList.add("" + file.lastModified() + " " + relativePath);
+                    .replace(record.getTargetPath().toString(), EMPTY);
+                var line = String.join(
+                    SPACE,
+                    String.valueOf(file.lastModified()),
+                    relativePath
+                );
+                outputList.add(line);
             });
-        tools.writeStringListToFile(stateFile.getPath().toString(), outputList);
+        LOGGER.info("Writing " + outputList.size() + " files to " + record.getPath());
+        tools.writeStringListToFile(record.getPath().toString(), outputList);
     }
 
     private Stream<File> getFiles() {
@@ -168,12 +162,12 @@ public class SyncDirectory {
                 .map(Path::toFile)
                 .filter(file -> !file.getName().equals(Constants.STATE_FILE_NAME));
         } catch (IOException e) {
-            LOGGER.severe("Could walk the file tree : StateFile will be empty.");
+            LOGGER.severe("Could walk the file tree : Record will be empty.");
             return Stream.empty();
         }
     }
 
-    public void doCreateOpsOnOtherSDs() {
+    public void doCreateOpsOnOtherSDs(Map<String, SyncFile> listCreated) {
         for (var createdFile : listCreated.values()) {
             for (var otherFile : otherFiles(createdFile)) {
                 writeFileIfNewer(createdFile, otherFile);
@@ -181,7 +175,7 @@ public class SyncDirectory {
         }
     }
 
-    public void doDeleteOpsOnOtherSDs() {
+    public void doDeleteOpsOnOtherSDs(Map<String, SyncFile> listDeleted) {
         for (var deletedFile : listDeleted.values()) {
             for (var otherFile : otherFiles(deletedFile)) {
                 deleteFileIfNewer(deletedFile, otherFile);
@@ -189,7 +183,7 @@ public class SyncDirectory {
         }
     }
 
-    public void doModifyOpsOnOtherSDs() {
+    public void doModifyOpsOnOtherSDs(Map<String, SyncFile> listModified) {
         for (var modifiedFile : listModified.values()) {
             for (var otherFile : otherFiles(modifiedFile)) {
                 writeFileIfNewer(modifiedFile, otherFile);
@@ -210,11 +204,12 @@ public class SyncDirectory {
     private void deleteFileIfNewer(SyncFile thisFile, SyncFile otherFile) {
         if (!otherFile.exists()) { return; }
         // if the otherFile was created with ensync it will have the == TimeModified.
-        if (thisFile.getTimeModified() >= otherFile.getTimeModified()) {
+        if (thisFile.lastModified() >= otherFile.lastModified()) {
             try {
-                Files.delete(Path.of(otherFile.getPath()));
+                Files.delete(otherFile.toPath());
+                LOGGER.info("Deleted: " + otherFile.toPath());
             } catch (IOException e) {
-                LOGGER.severe("Could not delete file.");
+                LOGGER.severe("Could not delete: " + otherFile.toPath());
             }
         }
     }
@@ -223,17 +218,48 @@ public class SyncDirectory {
      * Overwrite other file if this file is newer.
      */
     private void writeFileIfNewer(SyncFile thisFile, SyncFile otherFile) {
-        if (otherFile.exists() && thisFile.isOlder(otherFile)) { return; }
-        if (thisFile.isFile()) {
-            try {
-                Files.copy(
-                    Path.of(thisFile.getPath()),
-                    Path.of(otherFile.getPath())
-                );
-                otherFile.setLastModified(thisFile.lastModified());
-            } catch (IOException e) {
-                LOGGER.severe("Could not copy file.");
+        LOGGER.info("Write from: "  + thisFile.toPath());
+        LOGGER.info("        to: "  + otherFile.toPath());
+        if (!thisFile.isFile()) { return; }
+        if (otherFile.exists()) {
+            var thisMd5 = getMd5(thisFile.toPath());
+            var otherMd5 = getMd5(otherFile.toPath());
+            if (thisMd5 == null || otherMd5 == null) { return; }
+            if (thisMd5.equals(otherMd5)) {
+                dropAge(thisFile, otherFile);
+                return;
+            } else if (thisFile.isOlder(otherFile)) {
+                LOGGER.info("Did not override due to target being newer.");
+                return;
             }
+        }
+        copyFile(thisFile, otherFile);
+    }
+
+    private void dropAge(SyncFile thisFile, SyncFile otherFile) {
+        if (thisFile.isOlder(otherFile)) {
+            otherFile.setLastModified(thisFile.lastModified());
+            LOGGER.info("Dropped age of OTHER: " + otherFile.toPath() + " to: " + otherFile.lastModified());
+        } else {
+            thisFile.setLastModified(otherFile.lastModified());
+            LOGGER.info("Dropped age of THIS:  " + thisFile.toPath() + " to: " + thisFile.lastModified());
+        }
+    }
+
+    private void copyFile(SyncFile thisFile, SyncFile otherFile) {
+        try {
+            Files.copy(
+                Path.of(thisFile.getPath()),
+                Path.of(otherFile.getPath()),
+                StandardCopyOption.REPLACE_EXISTING,
+                StandardCopyOption.COPY_ATTRIBUTES
+            );
+            LOGGER.info("Copied from: " + thisFile.toPath());
+            LOGGER.info("       to:   " + otherFile.toPath());
+        } catch (IOException e) {
+            LOGGER.severe("Could not copy file from: " + thisFile.toPath());
+            LOGGER.severe("                    to:   " + otherFile.toPath());
+            e.printStackTrace();
         }
     }
 

@@ -1,7 +1,7 @@
 package com.olexyn.ensync;
 
 import com.olexyn.ensync.artifacts.DataRoot;
-import com.olexyn.ensync.artifacts.StateFile;
+import com.olexyn.ensync.artifacts.Record;
 import com.olexyn.ensync.artifacts.SyncDirectory;
 
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -12,10 +12,11 @@ public class Flow implements Runnable {
 
     private static final Logger LOGGER = LogUtil.get(Flow.class);
 
-    public static final long POLLING_PAUSE = 400;
+    public static final long POLLING_PAUSE = 100;
     private final AtomicBoolean running = new AtomicBoolean(false);
 
     public void start() {
+        LOGGER.info("START Flow.");
         Thread worker = new Thread(this);
         worker.start();
     }
@@ -28,19 +29,15 @@ public class Flow implements Runnable {
     public void run() {
         running.set(true);
         while (running.get()) {
-
             synchronized(DataRoot.getSyncBundles()) {
-
-                readOrMakeStateFile();
-
+                writeRecordIfMissing();
                 DataRoot.getSyncBundles().forEach(
                     syncBundle -> {
                         var syncDirectories = syncBundle.getSyncDirectories();
-                        syncDirectories.forEach(this::doSyncDirectory);
+                        syncDirectories.forEach(this::sync);
                     }
                 );
             }
-
             try {
                 LOGGER.info("Pausing... for " + POLLING_PAUSE + "ms.");
                 Thread.sleep(POLLING_PAUSE);
@@ -53,35 +50,36 @@ public class Flow implements Runnable {
     /**
      *
      */
-    private void doSyncDirectory(SyncDirectory sd) {
-        LOGGER.info("DO SYNC DIRECTORY");
-        sd.readFileSystem();
+    private void sync(SyncDirectory sDir) {
+        LOGGER.info("DO SYNC " + sDir.directoryPath);
+        var listFileSystem = sDir.readFileSystem();
+        LOGGER.info("# of files on FS:       " + listFileSystem.size());
+        var record = sDir.readRecord();
+        LOGGER.info("# of files on Record:   " + record.size());
+        var listCreated = sDir.fillListOfLocallyCreatedFiles(listFileSystem, record);
+        LOGGER.info("# of files in Created:  " + listCreated.size());
+        var listDeleted = sDir.makeListOfLocallyDeletedFiles(listFileSystem, record);
+        LOGGER.info("# of files in Deleted:  " + listDeleted.size());
+        var listModified = sDir.makeListOfLocallyModifiedFiles(listFileSystem);
+        LOGGER.info("# of files in Modified: " + listModified.size());
 
+        sDir.doCreateOpsOnOtherSDs(listCreated);
+        sDir.doDeleteOpsOnOtherSDs(listDeleted);
+        sDir.doModifyOpsOnOtherSDs(listModified);
 
-        sd.fillListOfLocallyCreatedFiles();
-        sd.makeListOfLocallyDeletedFiles();
-        sd.makeListOfLocallyModifiedFiles();
-
-        sd.doCreateOpsOnOtherSDs();
-        sd.doDeleteOpsOnOtherSDs();
-        sd.doModifyOpsOnOtherSDs();
-
-
-        sd.writeStateFile(new StateFile(sd.directoryPath));
+        sDir.writeRecord(new Record(sDir.directoryPath));
     }
 
     /**
-     * For every single SyncDirectory try to read it's StateFile. <p>
-     * If the StateFile is missing, then create a StateFile.
+     * For every single SyncDirectory try to read it's Record. <p>
+     * If the Record is missing, then create a Record.
      */
-    private void readOrMakeStateFile() {
+    private void writeRecordIfMissing() {
         DataRoot.get().values().forEach(syncBundle -> {
-            for (var sd : syncBundle.syncDirectories.values()) {
-                var stateFile = new StateFile(sd.directoryPath);
-                if (stateFile.exists()) {
-                    LOGGER.info("READ-STATE-FILE");
-                } else {
-                    sd.writeStateFile(new StateFile(sd.directoryPath));
+            for (var sDir : syncBundle.syncDirectories.values()) {
+                var record = new Record(sDir.directoryPath);
+                if (!record.exists()) {
+                    sDir.writeRecord(new Record(sDir.directoryPath));
                 }
             }
         });

@@ -327,7 +327,7 @@ nothing</panel_attributes>
       <h>40</h>
     </coordinates>
     <panel_attributes>  cp if newer
-  try: time deletet = last time present in StateFile, else time deleted = 0 (~never existed)
+  try: time deletet = last time present in Record, else time deleted = 0 (~never existed)
 halign=left</panel_attributes>
     <additional_attributes/>
   </element>
@@ -677,7 +677,7 @@ bg=red</panel_attributes>
       <w>720</w>
       <h>30</h>
     </coordinates>
-    <panel_attributes>Deleted Files are tracked by their last existance in a StateFile.</panel_attributes>
+    <panel_attributes>Deleted Files are tracked by their last existance in a Record.</panel_attributes>
     <additional_attributes/>
   </element>
   <element>

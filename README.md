@@ -27,7 +27,7 @@ DataRoot                a data root
       \_ SyncFile :     a file on the FS.
 ```
 
-#### StateFile
+#### Record
 * Used for tracking of file deletions.
 * Located in each `SyncDirectory\state.ensync`
 * Contains `<last edited> <relative file path>` for each file in the SyncDirectory.
@@ -67,13 +67,13 @@ src.com.olexyn.ensync. | Low level helper methods.
 - Reduce disk access.
 - Add error handling. (i.e. if a web-directory is not available)
 - Track files that were modified during the loop.
-    - currently `writeStateFile` just takes from `find`
-    - this means any changes made during the loop will be written to the `StateFile`
-    - and created files are tracked by comparing `StateFile` (=old state) and `State` (=new state).
+    - currently `writeRecord` just takes from `find`
+    - this means any changes made during the loop will be written to the `Record`
+    - and created files are tracked by comparing `Record` (=old state) and `State` (=new state).
     - because of this it will appear as if the file created while the loop was running
     was already there.
     - thus the creation of said file will not be replicated to the other directories.
-    - to solve this `writeStateFile` should take the old `State` 
+    - to solve this `writeRecord` should take the old `State` 
     and manually add every operation that was performed by the loop (!= user created file while the loop was running).
  - File is created in DirB
     - Sync creates the file in DirA

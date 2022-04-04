@@ -3,7 +3,7 @@ package com.olexyn.ensync.artifacts
 import java.io.File
 import java.nio.file.Path
 
-class StateFile(val targetPath: Path) {
+class Record(val targetPath: Path) {
 
     fun getPath(): Path {
         return targetPath.resolve(Constants.STATE_FILE_NAME)

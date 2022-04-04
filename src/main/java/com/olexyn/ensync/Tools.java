@@ -7,8 +7,10 @@ import java.nio.file.Files;
 import java.nio.file.Paths;
 import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 
 public class Tools {
 
@@ -72,17 +74,12 @@ public class Tools {
     }
 
 
-    public Map<String, SyncFile> mapMinus(Map<String, SyncFile> fromA, Map<String, SyncFile> substractB) {
-
-        Map<String, SyncFile> difference = new HashMap<>();
-        for (Map.Entry<String, SyncFile> entry : fromA.entrySet()) {
-            String key = entry.getKey();
-
-            if (fromA.containsKey(key) && !substractB.containsKey(key)) {
-                SyncFile file = fromA.get(key);
-                difference.put(key, file);
+    public Set<String> setMinus(Set<String> fromA, Set<String> subtractB) {
+        Set<String> difference = new HashSet<>();
+        for (var key : fromA) {
+            if (fromA.contains(key) && !subtractB.contains(key)) {
+                difference.add(key);
             }
-
         }
         return difference;
     }

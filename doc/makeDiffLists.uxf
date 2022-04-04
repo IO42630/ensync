@@ -50,7 +50,7 @@ group=1</panel_attributes>
       <w>130</w>
       <h>60</h>
     </coordinates>
-    <panel_attributes>StateFile
+    <panel_attributes>Record
 bg=yellow
 halign=left
 group=1</panel_attributes>
@@ -105,7 +105,7 @@ group=2</panel_attributes>
       <w>130</w>
       <h>30</h>
     </coordinates>
-    <panel_attributes>StateFile
+    <panel_attributes>Record
 bg=yellow
 halign=left
 group=2</panel_attributes>
@@ -234,7 +234,7 @@ group=3</panel_attributes>
       <w>130</w>
       <h>30</h>
     </coordinates>
-    <panel_attributes>StateFile
+    <panel_attributes>Record
 bg=yellow
 halign=left
 group=3</panel_attributes>
