@@ -5,3 +5,4 @@
 *.xlsx#
 testfile.txt
 *.log*
+/src/test/temp/*

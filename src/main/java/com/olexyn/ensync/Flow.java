@@ -4,6 +4,7 @@ import com.olexyn.ensync.artifacts.DataRoot;
 import com.olexyn.ensync.artifacts.StateFile;
 import com.olexyn.ensync.artifacts.SyncDirectory;
 
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.logging.Logger;
 
 
@@ -12,14 +13,21 @@ public class Flow implements Runnable {
     private static final Logger LOGGER = LogUtil.get(Flow.class);
 
     public static final long POLLING_PAUSE = 400;
+    private final AtomicBoolean running = new AtomicBoolean(false);
 
-    /**
-     *
-     */
+    public void start() {
+        Thread worker = new Thread(this);
+        worker.start();
+    }
+
+    public void stop() {
+        running.set(false);
+    }
+
     @Override
     public void run() {
-
-        while (true) {
+        running.set(true);
+        while (running.get()) {
 
             synchronized(DataRoot.getSyncBundles()) {
 
@@ -34,9 +42,11 @@ public class Flow implements Runnable {
             }
 
             try {
-                System.out.println("Pausing... for " + POLLING_PAUSE + "ms.");
+                LOGGER.info("Pausing... for " + POLLING_PAUSE + "ms.");
                 Thread.sleep(POLLING_PAUSE);
-            } catch (InterruptedException ignored) { }
+            } catch (InterruptedException ignored) {
+                LOGGER.info("Thread interrupted.");
+            }
         }
     }
 
@@ -44,7 +54,7 @@ public class Flow implements Runnable {
      *
      */
     private void doSyncDirectory(SyncDirectory sd) {
-        LOGGER.info("READ");
+        LOGGER.info("DO SYNC DIRECTORY");
         sd.readFileSystem();
 
 
@@ -69,7 +79,7 @@ public class Flow implements Runnable {
             for (var sd : syncBundle.syncDirectories.values()) {
                 var stateFile = new StateFile(sd.directoryPath);
                 if (stateFile.exists()) {
-                    LOGGER.info("READ-STATE-FILE-" + sd.readStateFile());
+                    LOGGER.info("READ-STATE-FILE");
                 } else {
                     sd.writeStateFile(new StateFile(sd.directoryPath));
                 }

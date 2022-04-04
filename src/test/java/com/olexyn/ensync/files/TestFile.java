@@ -23,6 +23,11 @@ public class TestFile extends File {
         this.content = content;
     }
 
+    public List<String> readContent() {
+        this.content = tools.fileToLines(this);
+        return content;
+    }
+
     public List<String> getContent() {
         return content;
     }

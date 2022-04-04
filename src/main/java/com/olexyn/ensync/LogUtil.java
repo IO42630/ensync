@@ -13,7 +13,7 @@ import java.util.logging.SimpleFormatter;
 
 public class LogUtil {
 
-    private static final String format = "[%1$tF %1$tT] [%4$-7s] %5$-120s [%2$s]\n";
+    private static final String format = "[%1$tF %1$tT] [%4$-7s] %5$-100s [%2$s]\n";
 
     public static Logger get(Class<?> c) {
         return get(c, Level.INFO);
