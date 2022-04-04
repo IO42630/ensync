@@ -8,11 +8,14 @@ import org.json.JSONObject;
 
 import java.io.File;
 import java.nio.file.Path;
+import java.util.ArrayList;
+import java.util.List;
 
 
 public class MainApp {
 
     final public static Thread FLOW_THREAD = new Thread(new Flow(), "flow");
+    public static List<String> IGNORE = new ArrayList<>();
     final private static Tools tools = new Tools();
 
     public static void main(String[] args) throws JSONException {
@@ -29,6 +32,9 @@ public class MainApp {
 
             DataRoot.get().put(bundleKey, syncBundle);
         }
+
+        String ignorePath = System.getProperty("user.dir") + "/src/main/resources/syncignore";
+        IGNORE = tools.fileToLines(new File(ignorePath));
 
         FLOW_THREAD.start();
     }

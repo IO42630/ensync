@@ -1,13 +1,13 @@
 package com.olexyn.ensync.artifacts;
 
 import com.olexyn.ensync.LogUtil;
+import com.olexyn.ensync.MainApp;
 import com.olexyn.ensync.Tools;
 
 import java.io.File;
 import java.io.FileInputStream;
 import java.io.IOException;
 import java.math.BigInteger;
-import java.nio.file.CopyOption;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.StandardCopyOption;
@@ -19,12 +19,13 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Map.Entry;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.logging.Logger;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
 import static com.olexyn.ensync.artifacts.Constants.EMPTY;
-import static com.olexyn.ensync.artifacts.Constants.SPACE;
+import static com.olexyn.ensync.artifacts.Constants.RECORD_SEPARATOR;
 
 /**
  * A SyncDirectory is a singular occurrence of a directory in the filesystems.
@@ -71,15 +72,17 @@ public class SyncDirectory {
         List<String> lines = tools.fileToLines(record.getPath().toFile());
 
         for (String line : lines) {
-            // this is a predefined format: "<modification-time> <relative-path>"
-            var lineArr = line.split(SPACE);
+            // this is a predefined format: "<modification-time>RECORD_SEPARATOR<relative-path>"
+            var lineArr = line.split(RECORD_SEPARATOR);
             long modTime = Long.parseLong(lineArr[0]);
             String sFilePath = lineArr[1];
-            RecordFile sfile = new RecordFile(this, sFilePath);
+            String absolutePath = directoryPath + sFilePath;
+            RecordFile recordFile = new RecordFile(this, absolutePath);
 
-            sfile.setTimeModifiedFromRecord(modTime);
-
-            filemap.put(sFilePath, sfile);
+            recordFile.setTimeModifiedFromRecord(modTime);
+            if (!shouldIgnore(recordFile.toPath())) {
+                filemap.put(sFilePath, recordFile);
+            }
         }
         return filemap;
     }
@@ -145,14 +148,24 @@ public class SyncDirectory {
                 String relativePath = file.getAbsolutePath()
                     .replace(record.getTargetPath().toString(), EMPTY);
                 var line = String.join(
-                    SPACE,
+                    RECORD_SEPARATOR,
                     String.valueOf(file.lastModified()),
                     relativePath
                 );
                 outputList.add(line);
             });
+
         LOGGER.info("Writing " + outputList.size() + " files to " + record.getPath());
         tools.writeStringListToFile(record.getPath().toString(), outputList);
+    }
+
+    private boolean shouldIgnore(Path path) {
+        for (var entry : MainApp.IGNORE) {
+            if (path.toString().contains(entry)) {
+                return true;
+            }
+        }
+        return  false;
     }
 
     private Stream<File> getFiles() {
@@ -160,6 +173,7 @@ public class SyncDirectory {
             return Files.walk(directoryPath)
                 .filter(Files::isRegularFile)
                 .map(Path::toFile)
+                .filter(file -> !shouldIgnore(file.toPath()))
                 .filter(file -> !file.getName().equals(Constants.STATE_FILE_NAME));
         } catch (IOException e) {
             LOGGER.severe("Could walk the file tree : Record will be empty.");
