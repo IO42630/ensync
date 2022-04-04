@@ -54,20 +54,21 @@ public class Flow implements Runnable {
         LOGGER.info("DO SYNC " + sDir.directoryPath);
         var listFileSystem = sDir.readFileSystem();
         LOGGER.info("# of files on FS:       " + listFileSystem.size());
-        var record = sDir.readRecord();
-        LOGGER.info("# of files on Record:   " + record.size());
+        var record = new Record(sDir.directoryPath);
+        record.getFiles().putAll(sDir.readRecord());
+        LOGGER.info("# of files on Record:   " + record.getFiles().size());
         var listCreated = sDir.fillListOfLocallyCreatedFiles(listFileSystem, record);
         LOGGER.info("# of files in Created:  " + listCreated.size());
         var listDeleted = sDir.makeListOfLocallyDeletedFiles(listFileSystem, record);
         LOGGER.info("# of files in Deleted:  " + listDeleted.size());
-        var listModified = sDir.makeListOfLocallyModifiedFiles(listFileSystem);
+        var listModified = sDir.makeListOfLocallyModifiedFiles(listFileSystem, record);
         LOGGER.info("# of files in Modified: " + listModified.size());
 
         sDir.doCreateOpsOnOtherSDs(listCreated);
         sDir.doDeleteOpsOnOtherSDs(listDeleted);
         sDir.doModifyOpsOnOtherSDs(listModified);
 
-        sDir.writeRecord(new Record(sDir.directoryPath));
+        sDir.writeRecord(record);
     }
 
     /**

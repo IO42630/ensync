@@ -11,8 +11,6 @@ public class SyncFile extends File {
 
     private static final Logger LOGGER = LogUtil.get(SyncFile.class);
 
-
-
     private final String relativePath;
     private final SyncDirectory sDir;
 
@@ -27,21 +25,6 @@ public class SyncFile extends File {
     }
 
 
-
-    public long lastModifiedFromRecord() {
-        RecordFile record = getFromRecord();
-        if (record == null) {
-            LOGGER.severe("Did not find record for " + this.toPath() + " in Record.");
-            LOGGER.severe("Returning -1 (never existed).");
-            return -1;
-        }
-        return  record.timeModifiedFromRecord;
-    }
-
-    public RecordFile getFromRecord() {
-        return sDir.readRecord().get(getRelativePath());
-    }
-
     /**
      * If File exists on Disk get the TimeModified from there.
      * Else try to read it from Record.
@@ -53,7 +36,9 @@ public class SyncFile extends File {
     @Override
     public long lastModified(){
         if (exists()) { return super.lastModified(); }
-        return lastModifiedFromRecord();
+        LOGGER.info("Did not find File for " + this);
+        LOGGER.info("Returning -1 (never existed).");
+        return -1;
     }
 
     public boolean isNewer(SyncFile otherFile) {

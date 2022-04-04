@@ -3,6 +3,7 @@ package com.olexyn.ensync.artifacts;
 import com.olexyn.ensync.LogUtil;
 import com.olexyn.ensync.MainApp;
 import com.olexyn.ensync.Tools;
+import org.apache.commons.io.FileUtils;
 
 import java.io.File;
 import java.io.FileInputStream;
@@ -19,7 +20,6 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Map.Entry;
-import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.logging.Logger;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
@@ -92,8 +92,8 @@ public class SyncDirectory {
      * Compare the OLD and NEW pools.
      * List is cleared and created each time.
      */
-    public Map<String, SyncFile> fillListOfLocallyCreatedFiles(Map<String, SyncFile> listFileSystem, Map<String, RecordFile> record) {
-        var listCreated = tools.setMinus(listFileSystem.keySet(), record.keySet());
+    public Map<String, SyncFile> fillListOfLocallyCreatedFiles(Map<String, SyncFile> listFileSystem, Record record) {
+        var listCreated = tools.setMinus(listFileSystem.keySet(), record.getFiles().keySet());
         return listCreated.stream().collect(Collectors.toMap(key -> key, listFileSystem::get));
     }
 
@@ -101,24 +101,24 @@ public class SyncDirectory {
      * Compare the OLD and NEW pools.
      * List is cleared and created each time.
      */
-    public Map<String, SyncFile> makeListOfLocallyDeletedFiles(Map<String, SyncFile> listFileSystem, Map<String, RecordFile> record) {
-        var listDeleted = tools.setMinus(record.keySet(), listFileSystem.keySet());
-        return listDeleted.stream().collect(Collectors.toMap(key -> key, record::get));
+    public Map<String, RecordFile> makeListOfLocallyDeletedFiles(Map<String, SyncFile> listFileSystem, Record record) {
+        var listDeleted = tools.setMinus(record.getFiles().keySet(), listFileSystem.keySet());
+        return listDeleted.stream().collect(Collectors.toMap(key -> key, key -> record.getFiles().get(key)));
     }
 
     /**
      * Compare the OLD and NEW pools.
      * List is cleared and created each time.
      */
-    public Map<String, SyncFile> makeListOfLocallyModifiedFiles(Map<String, SyncFile> listFileSystem) {
+    public Map<String, SyncFile> makeListOfLocallyModifiedFiles(Map<String, SyncFile> listFileSystem, Record record) {
 
         return listFileSystem.entrySet().stream().filter(
             fileEntry -> {
                 String fileKey = fileEntry.getKey();
                 SyncFile file = fileEntry.getValue();
                 if (file.isDirectory()) { return false; } // no need to modify Directories, the Filesystem will do that, if a File changed.
-                boolean isKnown = readRecord().containsKey(fileKey); // If KEY exists in OLD , thus FILE was NOT created.
-                boolean isModified = file.lastModified() > file.lastModifiedFromRecord();
+                boolean isKnown = record.getFiles().containsKey(fileKey); // If KEY exists in OLD , thus FILE was NOT created.
+                boolean isModified = file.lastModified() > record.lastModified(fileKey);
                 return isKnown && isModified;
             }
         ).collect(Collectors.toMap(Entry::getKey, Entry::getValue));
@@ -189,7 +189,7 @@ public class SyncDirectory {
         }
     }
 
-    public void doDeleteOpsOnOtherSDs(Map<String, SyncFile> listDeleted) {
+    public void doDeleteOpsOnOtherSDs(Map<String, RecordFile> listDeleted) {
         for (var deletedFile : listDeleted.values()) {
             for (var otherFile : otherFiles(deletedFile)) {
                 deleteFileIfNewer(deletedFile, otherFile);
@@ -214,10 +214,11 @@ public class SyncDirectory {
 
     /**
      * Delete other file if this file is newer.
+     * Here the >= is crucial, since otherFile might have == modified,
+     * but in that case we still want to delete both files.
      */
-    private void deleteFileIfNewer(SyncFile thisFile, SyncFile otherFile) {
+    private void deleteFileIfNewer(RecordFile thisFile, SyncFile otherFile) {
         if (!otherFile.exists()) { return; }
-        // if the otherFile was created with ensync it will have the == TimeModified.
         if (thisFile.lastModified() >= otherFile.lastModified()) {
             try {
                 Files.delete(otherFile.toPath());
@@ -262,9 +263,9 @@ public class SyncDirectory {
 
     private void copyFile(SyncFile thisFile, SyncFile otherFile) {
         try {
-            Files.copy(
-                Path.of(thisFile.getPath()),
-                Path.of(otherFile.getPath()),
+            FileUtils.copyFile(
+                thisFile,
+                otherFile,
                 StandardCopyOption.REPLACE_EXISTING,
                 StandardCopyOption.COPY_ATTRIBUTES
             );

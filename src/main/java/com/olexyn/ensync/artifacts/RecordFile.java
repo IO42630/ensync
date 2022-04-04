@@ -9,6 +9,11 @@ public class RecordFile extends SyncFile {
         super(sDir, absolutePath);
     }
 
+    @Override
+    public long lastModified() {
+        return timeModifiedFromRecord;
+    }
+
     public void setTimeModifiedFromRecord(long value) {
         timeModifiedFromRecord = value;
     }
