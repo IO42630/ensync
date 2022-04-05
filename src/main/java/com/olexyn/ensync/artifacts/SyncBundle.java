@@ -5,8 +5,10 @@ import com.olexyn.ensync.Tools;
 
 import java.io.File;
 import java.nio.file.Path;
+import java.util.ArrayList;
 import java.util.Collection;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 
 /**
@@ -16,7 +18,7 @@ import java.util.Map;
 public class SyncBundle {
 
     public String name;
-    public Map<Path, SyncDirectory> syncDirectories = new HashMap<>();
+    public List<SyncDirectory> syncDirectories = new ArrayList<>();
 
     Tools tools = new Tools();
 
@@ -28,7 +30,7 @@ public class SyncBundle {
     }
 
     public Collection<SyncDirectory> getSyncDirectories() {
-        return syncDirectories.values();
+        return syncDirectories;
     }
 
     /**
@@ -40,12 +42,9 @@ public class SyncBundle {
      */
     public void addDirectory(Path path) {
         if (path.toFile().isDirectory()) {
-            syncDirectories.put(path, new SyncDirectory(path, this));
+            syncDirectories.add(new SyncDirectory(path, this));
         }
     }
 
-    public void removeDirectory(String realPath) {
-        syncDirectories.remove(realPath);
-    }
 
 }

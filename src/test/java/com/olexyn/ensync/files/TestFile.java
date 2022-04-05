@@ -1,16 +1,22 @@
 package com.olexyn.ensync.files;
 
+import com.olexyn.ensync.LogUtil;
 import com.olexyn.ensync.Tools;
+import com.olexyn.ensync.artifacts.SyncDirectory;
+import com.olexyn.ensync.lock.LockKeeper;
+import com.olexyn.ensync.lock.LockUtil;
 
 import java.io.File;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Objects;
+import java.util.logging.Logger;
 
 public class TestFile extends File {
 
+    private static final Logger LOGGER = LogUtil.get(TestFile.class);
+
     Tools tools = new Tools();
-    private List<String> content = new ArrayList<>();
 
     /**
      * Wrapper for File that adds tools for assessing it's state.
@@ -19,28 +25,13 @@ public class TestFile extends File {
         super(pathname);
     }
 
-    public void setContent(List<String> content) {
-        this.content = content;
-    }
-
     public List<String> readContent() {
-        this.content = tools.fileToLines(this);
-        return content;
+        LOGGER.info("TEST TRY READ: " + toPath());
+        var fcState = LockUtil.lockFile(toPath());
+        return tools.fileToLines(fcState.getFc());
     }
 
-    public List<String> getContent() {
-        return content;
-    }
 
-    public List<String> copyContent() {
-        return List.copyOf(content);
-    }
-
-    public TestFile updateContent() {
-        String line = tools.fileToLines(this).get(0);
-        this.content.add(line);
-        return this;
-    }
 
     @Override
     public boolean equals(Object o) {

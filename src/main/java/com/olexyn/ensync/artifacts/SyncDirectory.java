@@ -3,12 +3,19 @@ package com.olexyn.ensync.artifacts;
 import com.olexyn.ensync.LogUtil;
 import com.olexyn.ensync.MainApp;
 import com.olexyn.ensync.Tools;
+import com.olexyn.ensync.lock.LockKeeper;
+import com.olexyn.ensync.lock.LockUtil;
 import org.apache.commons.io.FileUtils;
+import org.apache.commons.io.IOUtils;
 
 import java.io.File;
 import java.io.FileInputStream;
 import java.io.IOException;
 import java.math.BigInteger;
+import java.nio.channels.Channels;
+import java.nio.channels.ClosedChannelException;
+import java.nio.channels.FileChannel;
+import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.StandardCopyOption;
@@ -35,9 +42,6 @@ public class SyncDirectory {
     private static final Logger LOGGER = LogUtil.get(SyncDirectory.class);
     private final SyncBundle syncMap;
     public Path directoryPath;
-    public Map<String, SyncFile> listCreated = new HashMap<>();
-    public Map<String, SyncFile> listDeleted = new HashMap<>();
-    public Map<String, SyncFile> listModified = new HashMap<>();
     Tools tools = new Tools();
 
     /**
@@ -69,7 +73,8 @@ public class SyncDirectory {
     public Map<String, RecordFile> readRecord() {
         Map<String, RecordFile> filemap = new HashMap<>();
         var record = new Record(directoryPath);
-        List<String> lines = tools.fileToLines(record.getPath().toFile());
+
+        var lines = tools.fileToLines(LockKeeper.getFc(record.getPath()));
 
         for (String line : lines) {
             // this is a predefined format: "<modification-time>RECORD_SEPARATOR<relative-path>"
@@ -125,13 +130,14 @@ public class SyncDirectory {
     }
 
     private String getHash(Path path) {
-        try (var fos = new FileInputStream(path.toFile())) {
+        var thisFc = LockKeeper.getFc(path);
+        byte[] data = Tools.fileToString(thisFc).getBytes(StandardCharsets.UTF_8);
+        try {
             var m = MessageDigest.getInstance("SHA256");
-            byte[] data = fos.readAllBytes();
             m.update(data, 0, data.length);
             var i = new BigInteger(1, m.digest());
             return String.format("%1$032X", i);
-        } catch (NoSuchAlgorithmException | IOException e) {
+        } catch (NoSuchAlgorithmException e) {
             LOGGER.info("File not found.");
             return null;
         }
@@ -218,13 +224,15 @@ public class SyncDirectory {
      * but in that case we still want to delete both files.
      */
     private void deleteFileIfNewer(RecordFile thisFile, SyncFile otherFile) {
-        if (!otherFile.exists()) { return; }
+        if (!otherFile.exists()) {
+            LOGGER.info("Could not delete: " + otherFile.toPath() + " not found.");
+            return; }
         if (thisFile.lastModified() >= otherFile.lastModified()) {
             try {
                 Files.delete(otherFile.toPath());
                 LOGGER.info("Deleted: " + otherFile.toPath());
             } catch (IOException e) {
-                LOGGER.severe("Could not delete: " + otherFile.toPath());
+                LOGGER.info("Could not delete: " + otherFile.toPath());
             }
         }
     }
@@ -243,7 +251,7 @@ public class SyncDirectory {
             if (thisHash.equals(otherHash)) {
                 dropAge(thisFile, otherFile);
                 return;
-            } else if (thisFile.isOlder(otherFile)) {
+            } else if (thisFile.lastModified() <= otherFile.lastModified()) {
                 LOGGER.info("Did not override due to target being newer.");
                 return;
             }
@@ -252,7 +260,10 @@ public class SyncDirectory {
     }
 
     private void dropAge(SyncFile thisFile, SyncFile otherFile) {
-        if (thisFile.isOlder(otherFile)) {
+        if (thisFile.lastModified() == otherFile.lastModified()) {
+            return;
+        }
+        if (thisFile.lastModified() < otherFile.lastModified()) {
             otherFile.setLastModified(thisFile.lastModified());
             LOGGER.info("Dropped age of: " + otherFile.toPath() + " -> " + otherFile.lastModified());
         } else {
@@ -262,15 +273,14 @@ public class SyncDirectory {
     }
 
     private void copyFile(SyncFile thisFile, SyncFile otherFile) {
-        try {
-            FileUtils.copyFile(
-                thisFile,
-                otherFile,
-                StandardCopyOption.REPLACE_EXISTING,
-                StandardCopyOption.COPY_ATTRIBUTES
-            );
-            LOGGER.info("Copied from: " + thisFile.toPath());
-            LOGGER.info("         to: " + otherFile.toPath());
+        var thisFc = LockKeeper.getFc(thisFile.toPath());
+        var otherFc = LockKeeper.getFc(otherFile.toPath());
+        try (var br = Tools.reader(thisFc) ; var bw = Tools.writer(otherFc) ) {
+            IOUtils.copy(br, bw);
+            LOGGER.info(thisFile.toPath() + "lastModified before " + thisFile.lastModified());
+            LOGGER.info(otherFile.toPath() + "lastModified before " + otherFile.lastModified());
+            otherFile.setLastModified(thisFile.lastModified());
+            LOGGER.info(otherFile.toPath() + "lastModified before " + otherFile.lastModified());
         } catch (IOException e) {
             LOGGER.severe("Could not copy file from: " + thisFile.toPath());
             LOGGER.severe("                      to: " + otherFile.toPath());

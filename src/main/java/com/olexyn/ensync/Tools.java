@@ -1,8 +1,12 @@
 package com.olexyn.ensync;
 
 import com.olexyn.ensync.artifacts.SyncFile;
+import com.olexyn.ensync.lock.LockKeeper;
 
 import java.io.*;
+import java.nio.channels.Channels;
+import java.nio.channels.FileChannel;
+import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Paths;
 import java.util.ArrayList;
@@ -14,58 +18,31 @@ import java.util.Set;
 
 public class Tools {
 
-    private final Execute x;
+    public static BufferedReader reader(FileChannel fc) {
+        return new BufferedReader(Channels.newReader(fc, StandardCharsets.UTF_8));
+    }
 
-    public Tools() {
-        x = new Execute();
+    public static BufferedWriter writer(FileChannel fc) {
+        return new BufferedWriter(Channels.newWriter(fc, StandardCharsets.UTF_8));
     }
 
 
-    /**
-     * Convert BufferedReader to String.
-     *
-     * @param br BufferedReader
-     * @return String
-     */
-    public String brToString(BufferedReader br) {
-        StringBuilder sb = new StringBuilder();
-        Object[] br_array = br.lines().toArray();
-        for (int i = 0; i < br_array.length; i++) {
-            sb.append(br_array[i].toString() + "\n");
-        }
-        return sb.toString();
-    }
-
-
-    /**
-     * Convert BufferedReader to List of Strings.
-     *
-     * @param br BufferedReader
-     * @return List
-     */
-    public List<String> brToListString(BufferedReader br) {
-        List<String> list = new ArrayList<>();
-        Object[] br_array = br.lines().toArray();
-        for (int i = 0; i < br_array.length; i++) {
-            list.add(br_array[i].toString());
-        }
-        return list;
-    }
-
-
-    public List<String> fileToLines(File file) {
-        String filePath = file.getPath();
-        List<String> lines = null;
-        try {
-            lines = Files.readAllLines(Paths.get(filePath));
+    public static List<String> fileToLines(FileChannel fc) {
+        List<String> lines = new ArrayList<>();
+        try (var br = reader(fc)) {
+            String line;
+            while((line=br.readLine())!=null)
+            {
+                lines.add(line);
+            }
         } catch (IOException e) {
             e.printStackTrace();
         }
         return lines;
     }
 
-    public String fileToString(File file){
-        List<String> lineList = fileToLines(file);
+    public static String fileToString(FileChannel fc){
+        var lineList = fileToLines(fc);
         StringBuilder sb = new StringBuilder();
         for (String line : lineList){
             sb.append(line).append("\n");
@@ -86,10 +63,9 @@ public class Tools {
 
 
     public StringBuilder stringListToSb(List<String> list) {
-        StringBuilder sb = new StringBuilder();
-
+        var sb = new StringBuilder();
         for (String line : list) {
-            sb.append(line + "\n");
+            sb.append(line).append("\n");
         }
         return sb;
     }
@@ -105,10 +81,8 @@ public class Tools {
     }
 
     public void writeSbToFile(File file, StringBuilder sb) {
-        try {
-            BufferedWriter bw = new BufferedWriter(new FileWriter(file));
+        try (BufferedWriter bw = new BufferedWriter(new FileWriter(file))){
             bw.write(sb.toString());
-            bw.close();
         } catch (Exception e) {
             e.printStackTrace();
         }
@@ -122,11 +96,9 @@ public class Tools {
      * @param list <i>StringBuilder</i>
      */
     public void writeStringListToFile(String path, List<String> list) {
-        try {
-            var bw = new BufferedWriter(new FileWriter(path));
+        try (var bw = new BufferedWriter(new FileWriter(path))) {
             var sb = stringListToSb(list);
             bw.write(sb.toString());
-            bw.close();
         } catch (Exception e) {
             e.printStackTrace();
         }

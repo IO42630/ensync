@@ -41,13 +41,6 @@ public class SyncFile extends File {
         return -1;
     }
 
-    public boolean isNewer(SyncFile otherFile) {
-        return this.lastModified() >= otherFile.lastModified();
-    }
-
-    public boolean isOlder(SyncFile otherFile) {
-        return !isNewer(otherFile);
-    }
 
     public  SyncFile otherFile(SyncDirectory otherSd) {
         return new SyncFile(otherSd, otherSd.directoryPath + this.relativePath);

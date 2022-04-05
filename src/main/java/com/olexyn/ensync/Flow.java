@@ -3,9 +3,11 @@ package com.olexyn.ensync;
 import com.olexyn.ensync.artifacts.DataRoot;
 import com.olexyn.ensync.artifacts.Record;
 import com.olexyn.ensync.artifacts.SyncDirectory;
+import com.olexyn.ensync.lock.LockKeeper;
 
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.logging.Logger;
+import java.util.stream.Collectors;
 
 
 public class Flow implements Runnable {
@@ -17,7 +19,7 @@ public class Flow implements Runnable {
 
     public void start() {
         LOGGER.info("START Flow.");
-        Thread worker = new Thread(this);
+        Thread worker = new Thread(this, "FLOW_WORKER");
         worker.start();
     }
 
@@ -34,7 +36,14 @@ public class Flow implements Runnable {
                 DataRoot.getSyncBundles().forEach(
                     syncBundle -> {
                         var syncDirectories = syncBundle.getSyncDirectories();
-                        syncDirectories.forEach(this::sync);
+                        var lockFail = syncDirectories.stream()
+                            .map(sDir -> LockKeeper.lockDir(sDir.directoryPath))
+                            .collect(Collectors.toList())
+                            .contains(false);
+                        if (!lockFail) {
+                            syncDirectories.forEach(this::sync);
+                        }
+                        LockKeeper.unlockAll();
                     }
                 );
             }
@@ -77,7 +86,7 @@ public class Flow implements Runnable {
      */
     private void writeRecordIfMissing() {
         DataRoot.get().values().forEach(syncBundle -> {
-            for (var sDir : syncBundle.syncDirectories.values()) {
+            for (var sDir : syncBundle.syncDirectories) {
                 var record = new Record(sDir.directoryPath);
                 if (!record.exists()) {
                     sDir.writeRecord(new Record(sDir.directoryPath));

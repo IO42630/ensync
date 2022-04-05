@@ -3,6 +3,7 @@ package com.olexyn.ensync;
 import com.olexyn.ensync.artifacts.DataRoot;
 import com.olexyn.ensync.artifacts.SyncBundle;
 
+import com.olexyn.ensync.lock.LockUtil;
 import org.json.JSONException;
 import org.json.JSONObject;
 
@@ -14,14 +15,14 @@ import java.util.List;
 
 public class MainApp {
 
-    final public static Thread FLOW_THREAD = new Thread(new Flow(), "flow");
+    final public static Flow FLOW = new Flow();
     public static List<String> IGNORE = new ArrayList<>();
-    final private static Tools tools = new Tools();
+    final private static Tools TOOLS = new Tools();
 
     public static void main(String[] args) throws JSONException {
 
-        String configPath = System.getProperty("user.dir") + "/src/main/resources/config.json";
-        String configString = tools.fileToString(new File(configPath));
+        var configPath = Path.of(System.getProperty("user.dir") + "/src/main/resources/config.json");
+        String configString = Tools.fileToString(LockUtil.lockFile(configPath).getFc());
         JSONObject dataRoot = new JSONObject(configString).getJSONObject("dataRoot");
         for (String bundleKey : dataRoot.keySet()) {
             SyncBundle syncBundle = new SyncBundle(bundleKey);
@@ -33,9 +34,8 @@ public class MainApp {
             DataRoot.get().put(bundleKey, syncBundle);
         }
 
-        String ignorePath = System.getProperty("user.dir") + "/src/main/resources/syncignore";
-        IGNORE = tools.fileToLines(new File(ignorePath));
-
-        FLOW_THREAD.start();
+        var ignorePath = Path.of(System.getProperty("user.dir") + "/src/main/resources/syncignore");
+        IGNORE = Tools.fileToLines(LockUtil.lockFile(ignorePath).getFc());
+        FLOW.start();
     }
 }
