@@ -42,7 +42,6 @@ public class SyncFile extends File {
     }
 
     public boolean isNewer(SyncFile otherFile) {
-        LOGGER.info("" + this.lastModified() + " >= " + otherFile.lastModified());
         return this.lastModified() >= otherFile.lastModified();
     }
 

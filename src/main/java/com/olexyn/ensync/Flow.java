@@ -39,7 +39,7 @@ public class Flow implements Runnable {
                 );
             }
             try {
-                LOGGER.info("Pausing... for " + POLLING_PAUSE + "ms.");
+                LOGGER.info("Sleeping... for " + POLLING_PAUSE + "ms.");
                 Thread.sleep(POLLING_PAUSE);
             } catch (InterruptedException ignored) {
                 LOGGER.info("Thread interrupted.");

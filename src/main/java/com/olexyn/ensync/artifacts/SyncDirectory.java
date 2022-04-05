@@ -124,9 +124,9 @@ public class SyncDirectory {
         ).collect(Collectors.toMap(Entry::getKey, Entry::getValue));
     }
 
-    private String getMd5(Path path) {
+    private String getHash(Path path) {
         try (var fos = new FileInputStream(path.toFile())) {
-            var m = MessageDigest.getInstance("MD5");
+            var m = MessageDigest.getInstance("SHA256");
             byte[] data = fos.readAllBytes();
             m.update(data, 0, data.length);
             var i = new BigInteger(1, m.digest());
@@ -155,7 +155,7 @@ public class SyncDirectory {
                 outputList.add(line);
             });
 
-        LOGGER.info("Writing " + outputList.size() + " files to " + record.getPath());
+        LOGGER.info("Writing " + outputList.size() + " files to Record: " + record.getPath());
         tools.writeStringListToFile(record.getPath().toString(), outputList);
     }
 
@@ -233,14 +233,14 @@ public class SyncDirectory {
      * Overwrite other file if this file is newer.
      */
     private void writeFileIfNewer(SyncFile thisFile, SyncFile otherFile) {
-        LOGGER.info("Write from: "  + thisFile.toPath());
-        LOGGER.info("        to: "  + otherFile.toPath());
+        LOGGER.info("Try write from: "  + thisFile.toPath());
+        LOGGER.info("            to: "  + otherFile.toPath());
         if (!thisFile.isFile()) { return; }
         if (otherFile.exists()) {
-            var thisMd5 = getMd5(thisFile.toPath());
-            var otherMd5 = getMd5(otherFile.toPath());
-            if (thisMd5 == null || otherMd5 == null) { return; }
-            if (thisMd5.equals(otherMd5)) {
+            var thisHash = getHash(thisFile.toPath());
+            var otherHash = getHash(otherFile.toPath());
+            if (thisHash == null || otherHash == null) { return; }
+            if (thisHash.equals(otherHash)) {
                 dropAge(thisFile, otherFile);
                 return;
             } else if (thisFile.isOlder(otherFile)) {
@@ -254,10 +254,10 @@ public class SyncDirectory {
     private void dropAge(SyncFile thisFile, SyncFile otherFile) {
         if (thisFile.isOlder(otherFile)) {
             otherFile.setLastModified(thisFile.lastModified());
-            LOGGER.info("Dropped age of OTHER: " + otherFile.toPath() + " to: " + otherFile.lastModified());
+            LOGGER.info("Dropped age of: " + otherFile.toPath() + " -> " + otherFile.lastModified());
         } else {
             thisFile.setLastModified(otherFile.lastModified());
-            LOGGER.info("Dropped age of THIS:  " + thisFile.toPath() + " to: " + thisFile.lastModified());
+            LOGGER.info("Dropped age of:  " + thisFile.toPath() + " -> " + thisFile.lastModified());
         }
     }
 
@@ -270,10 +270,10 @@ public class SyncDirectory {
                 StandardCopyOption.COPY_ATTRIBUTES
             );
             LOGGER.info("Copied from: " + thisFile.toPath());
-            LOGGER.info("       to:   " + otherFile.toPath());
+            LOGGER.info("         to: " + otherFile.toPath());
         } catch (IOException e) {
             LOGGER.severe("Could not copy file from: " + thisFile.toPath());
-            LOGGER.severe("                    to:   " + otherFile.toPath());
+            LOGGER.severe("                      to: " + otherFile.toPath());
             e.printStackTrace();
         }
     }
