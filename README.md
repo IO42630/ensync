@@ -1,25 +1,26 @@
 #### Table of Contents
-1. [Demo](#demo)
-1. [About](#about)
-4. [Package Contents](#package-contents)
-5. [Issues](#issues)
+1. [Features](#features)
+2. [Object Model](#object-model)
+3. [Demo](#demo)
+4. [Issues](#issues)
+5. [Details](#details)
+6. [TODO](#todo)
 
 <br>
+
+### Features<a name="features"></a>
+* Core
+  * Multiple folders can be synchronized
+    * Delete operations are recorded, and synchronized.
+    * For files with identical hashes, drop the modified date of the newer file.
+* Additional
+  * Folders can be added to ignore List
+* Technical
+  * FS/OS agnostic (Java `FileChannel`)
+
 <br>
 
-#### Design Goals
-* Least possible intrusion.
-    * work on top of a FS
-    * can be plugged / unpluggen anytime
-* Sync, not redundancy, not backup
-  * if user deletes File on one system, it will be deleted on all systems
-* Pretty simple rules:
-  * if same md5 keep older file
-  * if diff md5 keep newer file
-  * if created, create everywhere
-  * if deleted, delete everywhere
-
-#### Overview
+### Object Model<a name="object-model"></a>
 ```
 DataRoot                a data root
 \_ SyncBundle :         a bundle of directories on the FS to be syncronized.
@@ -27,43 +28,78 @@ DataRoot                a data root
       \_ SyncFile :     a file on the FS.
 ```
 
-#### Record
-* Used for tracking of file deletions.
-* Located in each `SyncDirectory\state.ensync`
-* Contains `<last edited> <relative file path>` for each file in the SyncDirectory.
+<br>
 
-#### Demo<a name="demo"></a> 
+### Demo<a name="demo"></a>
 [![IMAGE ALT TEXT](http://img.youtube.com/vi/znR3jyM_4Ss/0.jpg)](https://youtu.be/znR3jyM_4Ss "ensync WIP Demo")
 
 <br>
 
-#### About <a name="about"></a> 
+### Issues<a name="issues"></a>
+
+##### Detection of Concurrent Changes
+
+Ensync has a core loop.
+The duration of this cycle is determined by # of files and pause. <br>
+To correctly detect a create/delete operation on different instances of a file on requires at most 5 cyles.
+```
+  * BAD
+    * cycle 1 : A creates
+    * cycle 2 : A deletes / B sync creates
+    * cycle 3 : A sync creates
+  * GOOD
+    * cycle 1 : A creates
+    * cycle 2 :           / B sync creates
+    * cycle 3 : A ignores sync create
+    * cycle 4 : A deletes
+    * cycle 5 :           / B sync deletes
+```
+This means as # of files grows, we must wait longer and longer between modifying the same file.
+
+This was somewhat addressed by switching to FileChannel, and locking all the files. <br>
+However more tests must follow.
+
+For the best practice is not to modify different instances of the same file
+before having executed a core loop.   
+
+##### Lazy first Run (Design Choice)
+If *ensync* initially runs on a non-empty directory it will consider the
+existing files as "on record", thus not "created". <br>
+Hence ensyc will not push the changes to the other directories. <br>
+This avoids an accidental push of massive file set,
+but means that you have to copy the files manually the first time.
+
+<br>
+
+### Details  <a name="details"></a>
+
+#### Record
+* Used for tracking of file deletions.
+* Located in each `SyncDirectory\record.ensync`
+* Contains `<last edited><separator><relative file path>` for each file in the SyncDirectory.
+
+#### Core Loop
 Sync files across directories.
 
 ![alt text](https://raw.githubusercontent.com/IO42630/ensync/master/doc/flow-n-instances.png "Hello!")
 <br>
 <br>
 
-#### Package Contents <a name="package-contents"></a> 
+#### Package Contents
 
 | Path         | Comment |
 |---------------|-------------|
 doc | Diagrams.
 src.com.olexyn.ensync.artifacts | Data Model: Maps, Directories, Files. 
-src.com.olexyn.ensync.shell | .sh files to ease interaction with the host.
-src.com.olexyn.ensync.ui | JavaFX.
-src.com.olexyn.ensync.Execute       | Issue .sh commands.
 src.com.olexyn.ensync.Main          | Run from here.
 src.com.olexyn.ensync.Flow      | Flow of the synchronization.
 src.com.olexyn.ensync. | Low level helper methods.
 
 <br>
-<br>
 
-#### Issues <a name="issues"></a> 
+### TODO <a name="todo"></a> 
 
 - Add tests.
-- Remove Map entries, once file ops is performed.
 - Reduce disk access.
 - Add error handling. (i.e. if a web-directory is not available)
 - Track files that were modified during the loop.
