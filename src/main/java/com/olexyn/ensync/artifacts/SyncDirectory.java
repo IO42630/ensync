@@ -4,29 +4,24 @@ import com.olexyn.ensync.LogUtil;
 import com.olexyn.ensync.MainApp;
 import com.olexyn.ensync.Tools;
 import com.olexyn.ensync.lock.LockKeeper;
-import com.olexyn.ensync.lock.LockUtil;
 import org.apache.commons.io.FileUtils;
-import org.apache.commons.io.IOUtils;
 
 import java.io.File;
-import java.io.FileInputStream;
 import java.io.IOException;
+import java.io.InputStream;
+import java.io.OutputStream;
 import java.math.BigInteger;
 import java.nio.channels.Channels;
-import java.nio.channels.ClosedChannelException;
-import java.nio.channels.FileChannel;
-import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.nio.file.StandardCopyOption;
 import java.security.MessageDigest;
-import java.security.NoSuchAlgorithmException;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Map.Entry;
+import java.util.logging.Level;
 import java.util.logging.Logger;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
@@ -74,7 +69,7 @@ public class SyncDirectory {
         Map<String, RecordFile> filemap = new HashMap<>();
         var record = new Record(directoryPath);
 
-        var lines = tools.fileToLines(LockKeeper.getFc(record.getPath()));
+        var lines = Tools.fileToLines(LockKeeper.getFc(record.getPath()));
 
         for (String line : lines) {
             // this is a predefined format: "<modification-time>RECORD_SEPARATOR<relative-path>"
@@ -85,7 +80,7 @@ public class SyncDirectory {
             RecordFile recordFile = new RecordFile(this, absolutePath);
 
             recordFile.setTimeModifiedFromRecord(modTime);
-            if (!shouldIgnore(recordFile.toPath())) {
+            if (noIgnore(recordFile.toPath())) {
                 filemap.put(sFilePath, recordFile);
             }
         }
@@ -131,14 +126,17 @@ public class SyncDirectory {
 
     private String getHash(Path path) {
         var thisFc = LockKeeper.getFc(path);
-        byte[] data = Tools.fileToString(thisFc).getBytes(StandardCharsets.UTF_8);
-        try {
+        try (var is = Channels.newInputStream(thisFc)) {
             var m = MessageDigest.getInstance("SHA256");
-            m.update(data, 0, data.length);
+            byte[] buffer = new byte[262144];
+            int bytesRead;
+            while ((bytesRead = is.read(buffer)) != -1) {
+                m.update(buffer, 0, bytesRead);
+            }
             var i = new BigInteger(1, m.digest());
             return String.format("%1$032X", i);
-        } catch (NoSuchAlgorithmException e) {
-            LOGGER.info("File not found.");
+        } catch (Exception e) {
+            LOGGER.log(Level.INFO, "Failed to create Hash.", e);
             return null;
         }
     }
@@ -165,13 +163,19 @@ public class SyncDirectory {
         tools.writeStringListToFile(record.getPath().toString(), outputList);
     }
 
-    private boolean shouldIgnore(Path path) {
-        for (var entry : MainApp.IGNORE) {
-            if (path.toString().contains(entry)) {
-                return true;
+    private boolean noIgnore(Path path) {
+        for (var line : MainApp.IGNORE) {
+            line = line
+                .replace("/", "")
+                .replace("\\", "");
+            var pathX = path.toString()
+                .replace("/", "")
+                .replace("\\", "");
+            if (pathX.contains(line)) {
+                return false;
             }
         }
-        return  false;
+        return  true;
     }
 
     private Stream<File> getFiles() {
@@ -179,7 +183,7 @@ public class SyncDirectory {
             return Files.walk(directoryPath)
                 .filter(Files::isRegularFile)
                 .map(Path::toFile)
-                .filter(file -> !shouldIgnore(file.toPath()))
+                .filter(file -> noIgnore(file.toPath()))
                 .filter(file -> !file.getName().equals(Constants.STATE_FILE_NAME));
         } catch (IOException e) {
             LOGGER.severe("Could walk the file tree : Record will be empty.");
@@ -261,6 +265,7 @@ public class SyncDirectory {
 
     private void dropAge(SyncFile thisFile, SyncFile otherFile) {
         if (thisFile.lastModified() == otherFile.lastModified()) {
+            LOGGER.info("Same age, ignore");
             return;
         }
         if (thisFile.lastModified() < otherFile.lastModified()) {
@@ -273,18 +278,39 @@ public class SyncDirectory {
     }
 
     private void copyFile(SyncFile thisFile, SyncFile otherFile) {
+        if (!otherFile.getParentFile().exists()) {
+            try {
+                FileUtils.createParentDirectories(otherFile);
+            } catch (IOException e) {
+                LOGGER.info("Could not create Parent");
+            }
+        }
         var thisFc = LockKeeper.getFc(thisFile.toPath());
         var otherFc = LockKeeper.getFc(otherFile.toPath());
-        try (var br = Tools.reader(thisFc) ; var bw = Tools.writer(otherFc) ) {
-            IOUtils.copy(br, bw);
-            LOGGER.info(thisFile.toPath() + "lastModified before " + thisFile.lastModified());
-            LOGGER.info(otherFile.toPath() + "lastModified before " + otherFile.lastModified());
-            otherFile.setLastModified(thisFile.lastModified());
-            LOGGER.info(otherFile.toPath() + "lastModified before " + otherFile.lastModified());
-        } catch (IOException e) {
+        try (
+            var is = Channels.newInputStream(thisFc) ;
+            var os = Channels.newOutputStream(otherFc)
+        ) {
+            copyStream(is, os);
+        } catch (Exception e) {
             LOGGER.severe("Could not copy file from: " + thisFile.toPath());
             LOGGER.severe("                      to: " + otherFile.toPath());
             e.printStackTrace();
+        }
+        LOGGER.info(thisFile.toPath() + " "+ thisFile.lastModified());
+        LOGGER.info(otherFile.toPath() + " " + otherFile.lastModified());
+        otherFile.setLastModified(thisFile.lastModified());
+        LOGGER.info(otherFile.toPath() + " " + otherFile.lastModified());
+    }
+
+    public static void copyStream(InputStream input, OutputStream output)
+        throws IOException
+    {
+        byte[] buffer = new byte[262144];
+        int bytesRead;
+        while ((bytesRead = input.read(buffer)) != -1)
+        {
+            output.write(buffer, 0, bytesRead);
         }
     }
 

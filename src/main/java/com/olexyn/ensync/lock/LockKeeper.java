@@ -31,7 +31,6 @@ public class LockKeeper {
             return false;
         }
         LOGGER.info("LOCKED " + fcStates.size() + " files in " + dirPath);
-        fcStates.forEach(fcState -> LOGGER.info("    " + fcState.getPath()));
         fcStates.forEach(fcState -> LOCKS.put(fcState.getPath(), fcState));
         return fcStates.stream().noneMatch(FcState::isUnlocked);
     }
@@ -46,11 +45,10 @@ public class LockKeeper {
     }
 
     public static FileChannel getFc(Path path) {
-        var fc = LOCKS.get(path).getFc();
-        if (fc != null && fc.isOpen()) {
-            return fc;
+        var fcState = LOCKS.get(path);
+        if (fcState != null && fcState.getFc() != null && fcState.getFc().isOpen()) {
+            return fcState.getFc();
         }
-        FcState fcState;
         if (!path.toFile().exists()) {
             fcState = LockUtil.newFile(path);
         } else {
