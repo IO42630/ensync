@@ -187,6 +187,7 @@ public class FifteenTests {
         FLOW.start();
         waitX(M1000);
         createFile(aFile);
+        waitX(M1000);
         deleteFile(bFile);
         waitX(M1000);
         Assert.assertFalse(aFile.exists());
@@ -242,19 +243,6 @@ public class FifteenTests {
     }
 
     @Test
-    public void test11() {
-        createFile(aFile);
-        waitX(M1000);
-        FLOW.start();
-        waitX(M1000);
-        modifyFile(aFile);
-        waitX(M1000);
-        var bContent = createFile(bFile);
-        waitX(M1000);
-        Assert.assertEquals(bContent, aFile.readContent());
-    }
-
-    @Test
     public void test12() {
         createFile(aFile);
         createFile(bFile);
@@ -262,6 +250,7 @@ public class FifteenTests {
         FLOW.start();
         waitX(M1000);
         modifyFile(aFile);
+        waitX(M1000);
         var bContent = modifyFile(bFile);
         waitX(M1000);
         Assert.assertEquals(bContent, aFile.readContent());
