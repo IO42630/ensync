@@ -1,6 +1,7 @@
 package com.olexyn.ensync.lock;
 
 import com.olexyn.ensync.LogUtil;
+import com.olexyn.ensync.util.IgnoreUtil;
 
 import java.io.IOException;
 import java.nio.channels.FileChannel;
@@ -25,6 +26,7 @@ public class LockKeeper {
         try {
             fcStates = Files.walk(dirPath)
                 .filter(filePath -> filePath.toFile().isFile())
+                .filter(IgnoreUtil::noIgnore)
                 .map(filePath -> LockUtil.lockFile(filePath, TRY_COUNT))
                 .collect(Collectors.toList());
         } catch (IOException e) {

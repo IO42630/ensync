@@ -2,21 +2,18 @@ package com.olexyn.ensync;
 
 import com.olexyn.ensync.artifacts.DataRoot;
 import com.olexyn.ensync.artifacts.SyncBundle;
-
 import com.olexyn.ensync.lock.LockUtil;
+import com.olexyn.ensync.util.IgnoreUtil;
 import org.json.JSONException;
 import org.json.JSONObject;
 
-import java.io.File;
 import java.nio.file.Path;
-import java.util.ArrayList;
-import java.util.List;
 
 
 public class MainApp {
 
     final public static Flow FLOW = new Flow();
-    public static List<String> IGNORE = new ArrayList<>();
+
     final private static Tools TOOLS = new Tools();
 
     public static void main(String[] args) throws JSONException {
@@ -35,7 +32,7 @@ public class MainApp {
         }
 
         var ignorePath = Path.of(System.getProperty("user.dir") + "/src/main/resources/syncignore");
-        IGNORE = Tools.fileToLines(LockUtil.lockFile(ignorePath).getFc());
+        IgnoreUtil.IGNORE = Tools.fileToLines(LockUtil.lockFile(ignorePath).getFc());
         FLOW.start();
     }
 }

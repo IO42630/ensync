@@ -1,9 +1,9 @@
 package com.olexyn.ensync.artifacts;
 
 import com.olexyn.ensync.LogUtil;
-import com.olexyn.ensync.MainApp;
 import com.olexyn.ensync.Tools;
 import com.olexyn.ensync.lock.LockKeeper;
+import com.olexyn.ensync.util.IgnoreUtil;
 import org.apache.commons.io.FileUtils;
 
 import java.io.File;
@@ -80,7 +80,7 @@ public class SyncDirectory {
             RecordFile recordFile = new RecordFile(this, absolutePath);
 
             recordFile.setTimeModifiedFromRecord(modTime);
-            if (noIgnore(recordFile.toPath())) {
+            if (IgnoreUtil.noIgnore(recordFile.toPath())) {
                 filemap.put(sFilePath, recordFile);
             }
         }
@@ -163,27 +163,14 @@ public class SyncDirectory {
         tools.writeStringListToFile(record.getPath().toString(), outputList);
     }
 
-    private boolean noIgnore(Path path) {
-        for (var line : MainApp.IGNORE) {
-            line = line
-                .replace("/", "")
-                .replace("\\", "");
-            var pathX = path.toString()
-                .replace("/", "")
-                .replace("\\", "");
-            if (pathX.contains(line)) {
-                return false;
-            }
-        }
-        return  true;
-    }
+
 
     private Stream<File> getFiles() {
         try {
             return Files.walk(directoryPath)
                 .filter(Files::isRegularFile)
                 .map(Path::toFile)
-                .filter(file -> noIgnore(file.toPath()))
+                .filter(file -> IgnoreUtil.noIgnore(file.toPath()))
                 .filter(file -> !file.getName().equals(Constants.STATE_FILE_NAME));
         } catch (IOException e) {
             LOGGER.severe("Could walk the file tree : Record will be empty.");
