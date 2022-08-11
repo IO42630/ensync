@@ -1,9 +1,9 @@
 package com.olexyn.ensync.artifacts;
 
-import com.olexyn.ensync.LogUtil;
 import com.olexyn.ensync.Tools;
 import com.olexyn.ensync.lock.LockKeeper;
 import com.olexyn.ensync.util.IgnoreUtil;
+import com.olexyn.min.log.LogU;
 import org.apache.commons.io.FileUtils;
 
 import java.io.File;
@@ -21,8 +21,6 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Map.Entry;
-import java.util.logging.Level;
-import java.util.logging.Logger;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
@@ -34,7 +32,6 @@ import static com.olexyn.ensync.artifacts.Constants.RECORD_SEPARATOR;
  */
 public class SyncDirectory {
 
-    private static final Logger LOGGER = LogUtil.get(SyncDirectory.class);
     private final SyncBundle syncMap;
     public Path directoryPath;
     Tools tools = new Tools();
@@ -136,7 +133,7 @@ public class SyncDirectory {
             var i = new BigInteger(1, m.digest());
             return String.format("%1$032X", i);
         } catch (Exception e) {
-            LOGGER.log(Level.INFO, "Failed to create Hash.", e);
+            LogU.warnPlain("Failed to create Hash.\n%s", e.getMessage());
             return null;
         }
     }
@@ -159,7 +156,7 @@ public class SyncDirectory {
                 outputList.add(line);
             });
 
-        LOGGER.info("Writing " + outputList.size() + " files to Record: " + record.getPath());
+        LogU.infoPlain("Writing " + outputList.size() + " files to Record: " + record.getPath());
         tools.writeStringListToFile(record.getPath().toString(), outputList);
     }
 
@@ -173,7 +170,7 @@ public class SyncDirectory {
                 .filter(file -> IgnoreUtil.noIgnore(file.toPath()))
                 .filter(file -> !file.getName().equals(Constants.STATE_FILE_NAME));
         } catch (IOException e) {
-            LOGGER.severe("Could walk the file tree : Record will be empty.");
+            LogU.warnPlain("Could walk the file tree : Record will be empty.");
             return Stream.empty();
         }
     }
@@ -187,11 +184,14 @@ public class SyncDirectory {
     }
 
     public void doDeleteOpsOnOtherSDs(Map<String, RecordFile> listDeleted) {
+        int deleteCount = 0;
         for (var deletedFile : listDeleted.values()) {
             for (var otherFile : otherFiles(deletedFile)) {
-                deleteFileIfNewer(deletedFile, otherFile);
+                var ok = deleteFileIfNewer(deletedFile, otherFile);
+                if (ok) { deleteCount++; }
             }
         }
+        LogU.infoPlain("DELETED " + deleteCount + "/" + listDeleted.size() + " Files.");
     }
 
     public void doModifyOpsOnOtherSDs(Map<String, SyncFile> listModified) {
@@ -214,26 +214,31 @@ public class SyncDirectory {
      * Here the >= is crucial, since otherFile might have == modified,
      * but in that case we still want to delete both files.
      */
-    private void deleteFileIfNewer(RecordFile thisFile, SyncFile otherFile) {
+    private boolean deleteFileIfNewer(RecordFile thisFile, SyncFile otherFile) {
         if (!otherFile.exists()) {
-            LOGGER.info("Could not delete: " + otherFile.toPath() + " not found.");
-            return; }
+            LogU.infoPlain("Not deleted (not found) " + otherFile.toPath() + " not found.");
+            return false;
+        }
         if (thisFile.lastModified() >= otherFile.lastModified()) {
             try {
                 Files.delete(otherFile.toPath());
-                LOGGER.info("Deleted: " + otherFile.toPath());
+                LogU.infoPlain("Deleted " + otherFile.toPath());
+                return true;
             } catch (IOException e) {
-                LOGGER.info("Could not delete: " + otherFile.toPath());
+                LogU.infoPlain("Not deleted (IOE) " + otherFile.toPath());
+                return false;
             }
         }
+        LogU.infoPlain("Not deleted (other file modified recently)");
+        return false;
     }
 
     /**
      * Overwrite other file if this file is newer.
      */
     private void writeFileIfNewer(SyncFile thisFile, SyncFile otherFile) {
-        LOGGER.info("Try write from: "  + thisFile.toPath());
-        LOGGER.info("            to: "  + otherFile.toPath());
+        LogU.infoPlain("Try write from: "  + thisFile.toPath());
+        LogU.infoPlain("            to: "  + otherFile.toPath());
         if (!thisFile.isFile()) { return; }
         if (otherFile.exists()) {
             var thisHash = getHash(thisFile.toPath());
@@ -243,7 +248,7 @@ public class SyncDirectory {
                 dropAge(thisFile, otherFile);
                 return;
             } else if (thisFile.lastModified() <= otherFile.lastModified()) {
-                LOGGER.info("Did not override due to target being newer.");
+                LogU.infoPlain("Did not override due to target being newer.");
                 return;
             }
         }
@@ -252,15 +257,15 @@ public class SyncDirectory {
 
     private void dropAge(SyncFile thisFile, SyncFile otherFile) {
         if (thisFile.lastModified() == otherFile.lastModified()) {
-            LOGGER.info("Same age, ignore");
+            LogU.infoPlain("Same age, ignore");
             return;
         }
         if (thisFile.lastModified() < otherFile.lastModified()) {
             otherFile.setLastModified(thisFile.lastModified());
-            LOGGER.info("Dropped age of: " + otherFile.toPath() + " -> " + otherFile.lastModified());
+            LogU.infoPlain("Dropped age of: %s -> %s",otherFile.toPath(), otherFile.lastModified());
         } else {
             thisFile.setLastModified(otherFile.lastModified());
-            LOGGER.info("Dropped age of:  " + thisFile.toPath() + " -> " + thisFile.lastModified());
+            LogU.infoPlain("Dropped age of: %s -> %s",thisFile.toPath(), thisFile.lastModified());
         }
     }
 
@@ -269,7 +274,7 @@ public class SyncDirectory {
             try {
                 FileUtils.createParentDirectories(otherFile);
             } catch (IOException e) {
-                LOGGER.info("Could not create Parent");
+                LogU.warnPlain("Could not create Parent");
             }
         }
         var thisFc = LockKeeper.getFc(thisFile.toPath());
@@ -280,14 +285,15 @@ public class SyncDirectory {
         ) {
             copyStream(is, os);
         } catch (Exception e) {
-            LOGGER.severe("Could not copy file from: " + thisFile.toPath());
-            LOGGER.severe("                      to: " + otherFile.toPath());
+            LogU.warnPlain("Could not copy file from: %s", thisFile.toPath());
+            LogU.warnPlain("                      to: %s", otherFile.toPath());
             e.printStackTrace();
         }
-        LOGGER.info(thisFile.toPath() + " "+ thisFile.lastModified());
-        LOGGER.info(otherFile.toPath() + " " + otherFile.lastModified());
+
+        LogU.infoPlain(thisFile.toPath() + " "+ thisFile.lastModified());
+        LogU.infoPlain(otherFile.toPath() + " " + otherFile.lastModified());
         otherFile.setLastModified(thisFile.lastModified());
-        LOGGER.info(otherFile.toPath() + " " + otherFile.lastModified());
+        LogU.infoPlain(otherFile.toPath() + " " + otherFile.lastModified());
     }
 
     public static void copyStream(InputStream input, OutputStream output)

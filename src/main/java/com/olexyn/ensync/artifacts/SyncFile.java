@@ -1,15 +1,13 @@
 package com.olexyn.ensync.artifacts;
 
-import com.olexyn.ensync.LogUtil;
+import com.olexyn.min.log.LogU;
 
 import java.io.File;
-import java.util.logging.Logger;
 
 import static com.olexyn.ensync.artifacts.Constants.EMPTY;
 
 public class SyncFile extends File {
 
-    private static final Logger LOGGER = LogUtil.get(SyncFile.class);
 
     private final String relativePath;
     private final SyncDirectory sDir;
@@ -36,8 +34,8 @@ public class SyncFile extends File {
     @Override
     public long lastModified(){
         if (exists()) { return super.lastModified(); }
-        LOGGER.info("Did not find File for " + this);
-        LOGGER.info("Returning -1 (never existed).");
+        LogU.infoPlain("Did not find File for " + this);
+        LogU.infoPlain("Returning -1 (never existed).");
         return -1;
     }
 

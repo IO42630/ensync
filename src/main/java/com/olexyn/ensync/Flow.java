@@ -4,21 +4,19 @@ import com.olexyn.ensync.artifacts.DataRoot;
 import com.olexyn.ensync.artifacts.Record;
 import com.olexyn.ensync.artifacts.SyncDirectory;
 import com.olexyn.ensync.lock.LockKeeper;
+import com.olexyn.min.log.LogU;
 
 import java.util.concurrent.atomic.AtomicBoolean;
-import java.util.logging.Logger;
 import java.util.stream.Collectors;
 
 
 public class Flow implements Runnable {
 
-    private static final Logger LOGGER = LogUtil.get(Flow.class);
-
     public static final long POLLING_PAUSE = 100;
     private final AtomicBoolean running = new AtomicBoolean(false);
 
     public void start() {
-        LOGGER.info("START Flow.");
+        LogU.infoStart("Flow");
         Thread worker = new Thread(this, "FLOW_WORKER");
         worker.start();
     }
@@ -48,10 +46,10 @@ public class Flow implements Runnable {
                 );
             }
             try {
-                LOGGER.info("Sleeping... for " + POLLING_PAUSE + "ms.");
+                LogU.infoPlain("Sleeping... for %sms", POLLING_PAUSE);
                 Thread.sleep(POLLING_PAUSE);
             } catch (InterruptedException ignored) {
-                LOGGER.info("Thread interrupted.");
+                LogU.warnPlain("Thread interrupted.");
             }
         }
     }
@@ -60,19 +58,21 @@ public class Flow implements Runnable {
      *
      */
     private void sync(SyncDirectory sDir) {
-        LOGGER.info("DO SYNC " + sDir.directoryPath);
+        LogU.infoPlain("DO SYNC %s", sDir.directoryPath);
         var listFileSystem = sDir.readFileSystem();
-        LOGGER.info("# FS:       " + listFileSystem.size());
+        LogU.infoPlain("# FS:       %s", listFileSystem.size());
         var record = new Record(sDir.directoryPath);
         record.getFiles().putAll(sDir.readRecord());
-        LOGGER.info("# Record:   " + record.getFiles().size());
+        LogU.infoPlain("# Record:   %s", record.getFiles().size());
 
         var listCreated = sDir.fillListOfLocallyCreatedFiles(listFileSystem, record);
-        LOGGER.info("# Created:  " + listCreated.size());
         var listDeleted = sDir.makeListOfLocallyDeletedFiles(listFileSystem, record);
-        LOGGER.info("# Deleted:  " + listDeleted.size());
         var listModified = sDir.makeListOfLocallyModifiedFiles(listFileSystem, record);
-        LOGGER.info("# Modified: " + listModified.size());
+        Tools tools = new Tools();
+        int newly = tools.setMinus(listCreated.keySet(), listDeleted.keySet()).size();
+        LogU.infoPlain("# Created:  %s\n   thereof newly created (not mv) %s", listCreated.size(), newly);
+        LogU.infoPlain("# Deleted:  %s", listDeleted.size());
+        LogU.infoPlain("# Modified: %s", listModified.size());
 
         sDir.doCreateOpsOnOtherSDs(listCreated);
         sDir.doDeleteOpsOnOtherSDs(listDeleted);

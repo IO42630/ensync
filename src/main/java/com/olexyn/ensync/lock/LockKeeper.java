@@ -1,7 +1,7 @@
 package com.olexyn.ensync.lock;
 
-import com.olexyn.ensync.LogUtil;
 import com.olexyn.ensync.util.IgnoreUtil;
+import com.olexyn.min.log.LogU;
 
 import java.io.IOException;
 import java.nio.channels.FileChannel;
@@ -10,14 +10,11 @@ import java.nio.file.Path;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.logging.Logger;
 import java.util.stream.Collectors;
 
 public class LockKeeper {
 
     private static final int TRY_COUNT = 4;
-
-    private static final Logger LOGGER = LogUtil.get(LockKeeper.class);
 
     private final static Map<Path, FcState> LOCKS = new HashMap<>();
 
@@ -32,7 +29,7 @@ public class LockKeeper {
         } catch (IOException e) {
             return false;
         }
-        LOGGER.info("LOCKED " + fcStates.size() + " files in " + dirPath);
+        LogU.infoPlain("LOCKED " + fcStates.size() + " files in " + dirPath);
         fcStates.forEach(fcState -> LOCKS.put(fcState.getPath(), fcState));
         return fcStates.stream().noneMatch(FcState::isUnlocked);
     }
@@ -40,7 +37,7 @@ public class LockKeeper {
 
 
     public static void unlockAll() {
-        LOGGER.info("UNLOCKING ALL.");
+        LogU.infoPlain("UNLOCKING ALL.");
             LOCKS.values().forEach(
                 fcState -> LockUtil.unlockFile(fcState.getPath(), fcState.getFc(), 4)
             );

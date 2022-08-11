@@ -1,11 +1,11 @@
 package com.olexyn.ensync.files;
 
 import com.olexyn.ensync.Flow;
-import com.olexyn.ensync.LogUtil;
 import com.olexyn.ensync.Tools;
 import com.olexyn.ensync.artifacts.DataRoot;
 import com.olexyn.ensync.artifacts.SyncBundle;
 import com.olexyn.ensync.lock.LockUtil;
+import com.olexyn.min.log.LogU;
 import org.apache.commons.io.FileUtils;
 import org.junit.After;
 import org.junit.Assert;
@@ -20,7 +20,6 @@ import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
 import java.util.List;
-import java.util.logging.Logger;
 
 
 /**
@@ -29,7 +28,6 @@ import java.util.logging.Logger;
  */
 public class FifteenTests {
 
-    private static final Logger LOGGER = LogUtil.get(FifteenTests.class);
 
     final public static Flow FLOW = new Flow();
 
@@ -48,40 +46,40 @@ public class FifteenTests {
 
     private List<String> createFile(File file) {
         if (file.exists()) {
-            LOGGER.info("TEST can not create existing: " + file.toPath());
+            LogU.infoPlain("TEST can not create existing: " + file.toPath());
             Assert.fail();
         }
         List<String> stringList = new ArrayList<>();
         stringList.add(LocalDateTime.now().format(dateTimeFormatter) + " CREATED");
         tools.writeStringListToFile(file.getAbsolutePath(), stringList);
-        LOGGER.info("TEST CREATE: " + file.toPath());
+        LogU.infoPlain("TEST CREATE: " + file.toPath());
         return stringList;
     }
 
     private List<String> modifyFile(File file) {
-        LOGGER.info("TEST TRY MODIFY: " + file.toPath());
+        LogU.infoPlain("TEST TRY MODIFY: " + file.toPath());
         var fcState = LockUtil.lockFile(file.toPath(), 10);
         var stringList = new ArrayList<>(tools.fileToLines(fcState.getFc()));
         stringList.add(LocalDateTime.now().format(dateTimeFormatter) + " MODIFIED");
         tools.writeStringListToFile(file.getAbsolutePath(), stringList);
-        LOGGER.info("TEST MODIFY: " + file.toPath());
+        LogU.infoPlain("TEST MODIFY: " + file.toPath());
         LockUtil.unlockFile(fcState, 10);
-        LOGGER.info("TEST MODIFY UNLOCKED: " + file.toPath());
+        LogU.infoPlain("TEST MODIFY UNLOCKED: " + file.toPath());
         return stringList;
     }
 
 
     private static void deleteFile(File file) {
-        LOGGER.info("TEST TRY DELETE: " + file.toPath());
+        LogU.infoPlain("TEST TRY DELETE: " + file.toPath());
         var fcState = LockUtil.lockFile(file.toPath(), 10);
         try {
             Files.delete(file.toPath());
-            LOGGER.info("TEST DELETE: " + file.toPath());
+            LogU.infoPlain("TEST DELETE: " + file.toPath());
         } catch (IOException e) {
-            LOGGER.severe("Could not delete file." + file.toPath());
+            LogU.warnPlain("Could not delete file." + file.toPath());
         }
         LockUtil.unlockFile(fcState, 10);
-        LOGGER.info("TEST DELETE UNLOCKED: " + file.toPath());
+        LogU.infoPlain("TEST DELETE UNLOCKED: " + file.toPath());
     }
 
     private void cleanDirs(Path... dirs) {
@@ -90,7 +88,7 @@ public class FifteenTests {
                 FileUtils.deleteDirectory(dir.toFile());
                 Files.createDirectory(dir);
             } catch (IOException e) {
-                LOGGER.severe("Could not clear dirs. " + dir + e.getMessage());
+                LogU.warnPlain("Could not clear dirs. " + dir + e.getMessage());
             }
         }
     }

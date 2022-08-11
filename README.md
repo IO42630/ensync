@@ -30,6 +30,16 @@ DataRoot                a data root
 
 <br>
 
+
+### Flow
+* `for` each `SyncBundle`
+  * `for` each `SyncDirectory`
+    * check what files were CRUD, 
+    * propagate to other `SyncDirectory` of current `SyncBundle`.
+
+<br>
+
+
 ### Demo<a name="demo"></a>
 [![IMAGE ALT TEXT](http://img.youtube.com/vi/znR3jyM_4Ss/0.jpg)](https://youtu.be/znR3jyM_4Ss "ensync WIP Demo")
 

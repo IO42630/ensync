@@ -1,20 +1,14 @@
 package com.olexyn.ensync.files;
 
-import com.olexyn.ensync.LogUtil;
 import com.olexyn.ensync.Tools;
-import com.olexyn.ensync.artifacts.SyncDirectory;
-import com.olexyn.ensync.lock.LockKeeper;
 import com.olexyn.ensync.lock.LockUtil;
+import com.olexyn.min.log.LogU;
 
 import java.io.File;
-import java.util.ArrayList;
 import java.util.List;
 import java.util.Objects;
-import java.util.logging.Logger;
 
 public class TestFile extends File {
-
-    private static final Logger LOGGER = LogUtil.get(TestFile.class);
 
     Tools tools = new Tools();
 
@@ -26,7 +20,7 @@ public class TestFile extends File {
     }
 
     public List<String> readContent() {
-        LOGGER.info("TEST TRY READ: " + toPath());
+        LogU.infoPlain("TEST TRY READ: " + toPath());
         var fcState = LockUtil.lockFile(toPath());
         return tools.fileToLines(fcState.getFc());
     }
