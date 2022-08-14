@@ -1,12 +1,16 @@
 package com.olexyn.ensync;
 
 import com.olexyn.ensync.artifacts.DataRoot;
+import com.olexyn.ensync.artifacts.OpsResultType;
 import com.olexyn.ensync.artifacts.Record;
 import com.olexyn.ensync.artifacts.SyncDirectory;
 import com.olexyn.ensync.lock.LockKeeper;
+import com.olexyn.ensync.util.FileMove;
 import com.olexyn.ensync.util.TraceUtil;
 import com.olexyn.min.log.LogU;
 
+import java.util.List;
+import java.util.Map;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.stream.Collectors;
 
@@ -88,16 +92,23 @@ public class Flow implements Runnable {
         LogU.infoPlain("# MODIFIED: %s", mapModified.size());
         if (createdByMove == deletedByMove) {
             LogU.infoPlain("(created by mv == deleted by mv) -> EXECUTE OPS");
-            sDir.doCreateOpsOnOtherSDs(mapCreated);
-            sDir.doDeleteOpsOnOtherSDs(mapDeleted);
-            sDir.doModifyOpsOnOtherSDs(mapModified);
+            LogU.infoPlain("RESULTS:");
+            var createResults = sDir.doCreateOpsOnOtherSDs(mapCreated);
+            printResults(createResults);
+            var deleteResults = sDir.doDeleteOpsOnOtherSDs(mapDeleted);
+            printResults(deleteResults);
+            var modifyResults = sDir.doModifyOpsOnOtherSDs(mapModified);
+            printResults(modifyResults);
             sDir.writeRecord(record);
         } else {
             LogU.warnPlain("(created by mv != deleted by mv) -> ABORT");
         }
+    }
 
-
-
+    private void printResults(Map<OpsResultType, List<FileMove>> map) {
+        map.entrySet().stream()
+            .filter(entry -> !entry.getValue().isEmpty())
+            .forEach(entry -> LogU.infoPlain("%-30s:   %s", entry.getKey().name(), entry.getValue().size()));
     }
 
     /**

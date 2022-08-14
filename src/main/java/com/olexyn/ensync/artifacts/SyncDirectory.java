@@ -2,6 +2,7 @@ package com.olexyn.ensync.artifacts;
 
 import com.olexyn.ensync.Tools;
 import com.olexyn.ensync.lock.LockKeeper;
+import com.olexyn.ensync.util.FileMove;
 import com.olexyn.ensync.util.HashUtil;
 import com.olexyn.ensync.util.IgnoreUtil;
 import com.olexyn.min.log.LogU;
@@ -15,6 +16,7 @@ import java.nio.channels.Channels;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collection;
 import java.util.HashMap;
 import java.util.List;
@@ -25,6 +27,19 @@ import java.util.stream.Stream;
 
 import static com.olexyn.ensync.artifacts.Constants.EMPTY;
 import static com.olexyn.ensync.artifacts.Constants.RECORD_SEPARATOR;
+import static com.olexyn.ensync.artifacts.OpsResultType.IGNORE_COPY_COULD_NOT_HASH;
+import static com.olexyn.ensync.artifacts.OpsResultType.IGNORE_COPY_NOT_A_FILE;
+import static com.olexyn.ensync.artifacts.OpsResultType.IGNORE_COPY_OTHER_IS_NEWER;
+import static com.olexyn.ensync.artifacts.OpsResultType.IGNORE_COPY_SAME_AGE;
+import static com.olexyn.ensync.artifacts.OpsResultType.IGNORE_DELETE_OTHER_IS_NEWER;
+import static com.olexyn.ensync.artifacts.OpsResultType.IGNORE_DELETE_OTHER_NOT_FOUND;
+import static com.olexyn.ensync.artifacts.OpsResultType.OK_COPY;
+import static com.olexyn.ensync.artifacts.OpsResultType.OK_DELETE;
+import static com.olexyn.ensync.artifacts.OpsResultType.OK_DROPPED_AGE_FROM;
+import static com.olexyn.ensync.artifacts.OpsResultType.OK_DROPPED_AGE_TO;
+import static com.olexyn.ensync.artifacts.OpsResultType.WARN_COULD_NOT_COPY;
+import static com.olexyn.ensync.artifacts.OpsResultType.WARN_COULD_NOT_CREATE_PARENT;
+import static com.olexyn.ensync.artifacts.OpsResultType.WARN_COULD_NOT_DELETE;
 
 /**
  * A SyncDirectory is a singular occurrence of a directory in the filesystems.
@@ -156,31 +171,44 @@ public class SyncDirectory {
         }
     }
 
-    public void doCreateOpsOnOtherSDs(Map<String, SyncFile> listCreated) {
+    public Map<OpsResultType, List<FileMove>> doCreateOpsOnOtherSDs(Map<String, SyncFile> listCreated) {
+        var opsResults = initOpsResults();
         for (var createdFile : listCreated.values()) {
             for (var otherFile : otherFiles(createdFile)) {
-                writeFileIfNewer(createdFile, otherFile);
+                var result = writeFileIfNewer(createdFile, otherFile);
+                opsResults.get(result).add(new FileMove(createdFile.getAbsolutePath(), otherFile.getAbsolutePath()));
             }
         }
+        return opsResults;
     }
 
-    public void doDeleteOpsOnOtherSDs(Map<String, SyncFile> listDeleted) {
-        int deleteCount = 0;
+    public Map<OpsResultType, List<FileMove>> doDeleteOpsOnOtherSDs(Map<String, SyncFile> listDeleted) {
+        var opsResults = initOpsResults();
         for (var deletedFile : listDeleted.values()) {
             for (var otherFile : otherFiles(deletedFile)) {
-                var ok = deleteFileIfNewer(deletedFile, otherFile);
-                if (ok) { deleteCount++; }
+                var result = deleteFileIfNewer(deletedFile, otherFile);
+                opsResults.get(result).add(new FileMove(deletedFile.getAbsolutePath(), otherFile.getAbsolutePath()));
             }
         }
-        LogU.infoPlain("DELETED " + deleteCount + "/" + listDeleted.size() + " Files.");
+        return opsResults;
     }
 
-    public void doModifyOpsOnOtherSDs(Map<String, SyncFile> listModified) {
+    private Map<OpsResultType, List<FileMove>> initOpsResults() {
+        Map<OpsResultType, List<FileMove>> opsResults = new HashMap<>();
+        Arrays.stream(OpsResultType.values())
+            .forEach(opsResultType -> opsResults.put(opsResultType, new ArrayList<>()));
+        return opsResults;
+    }
+
+    public Map<OpsResultType, List<FileMove>> doModifyOpsOnOtherSDs(Map<String, SyncFile> listModified) {
+        var opsResults = initOpsResults();
         for (var modifiedFile : listModified.values()) {
             for (var otherFile : otherFiles(modifiedFile)) {
-                writeFileIfNewer(modifiedFile, otherFile);
+                var result = writeFileIfNewer(modifiedFile, otherFile);
+                opsResults.get(result).add(new FileMove(modifiedFile.getAbsolutePath(), otherFile.getAbsolutePath()));
             }
         }
+        return opsResults;
     }
 
     private Collection<SyncFile> otherFiles(SyncFile thisFile) {
@@ -195,95 +223,74 @@ public class SyncDirectory {
      * Here the >= is crucial, since otherFile might have == modified,
      * but in that case we still want to delete both files.
      */
-    private boolean deleteFileIfNewer(SyncFile thisFile, SyncFile otherFile) {
-        if (!otherFile.exists()) {
-            LogU.infoPlain("Not deleted (not found) " + otherFile.toPath() + " not found.");
-            return false;
-        }
+    private OpsResultType deleteFileIfNewer(SyncFile thisFile, SyncFile otherFile) {
+        if (!otherFile.exists()) { return IGNORE_DELETE_OTHER_NOT_FOUND; }
         if (thisFile.lastModified() >= otherFile.lastModified()) {
             try {
                 Files.delete(otherFile.toPath());
-                LogU.infoPlain("Deleted " + otherFile.toPath());
-                return true;
+                return OK_DELETE;
             } catch (IOException e) {
-                LogU.infoPlain("Not deleted (IOE) " + otherFile.toPath());
-                return false;
+                e.printStackTrace();
+                return WARN_COULD_NOT_DELETE;
             }
         }
-        LogU.infoPlain("Not deleted (other file modified recently)");
-        return false;
+        return IGNORE_DELETE_OTHER_IS_NEWER;
     }
 
     /**
      * Overwrite other file if this file is newer.
      */
-    private void writeFileIfNewer(SyncFile thisFile, SyncFile otherFile) {
-        LogU.infoPlain("Try write from: "  + thisFile.toPath());
-        LogU.infoPlain("            to: "  + otherFile.toPath());
-        if (!thisFile.isFile()) { return; }
+    private OpsResultType writeFileIfNewer(SyncFile thisFile, SyncFile otherFile) {
+        if (!thisFile.isFile()) { return IGNORE_COPY_NOT_A_FILE; }
         if (otherFile.exists()) {
             var thisHash = HashUtil.getHash(thisFile.toPath());
             var otherHash = HashUtil.getHash(otherFile.toPath());
-            if (thisHash == null || otherHash == null) { return; }
+            if (thisHash == null || otherHash == null) { return IGNORE_COPY_COULD_NOT_HASH; }
             if (thisHash.equals(otherHash)) {
-                dropAge(thisFile, otherFile);
-                return;
+                return dropAge(thisFile, otherFile);
             } else if (thisFile.lastModified() <= otherFile.lastModified()) {
-                LogU.infoPlain("Did not override due to target being newer.");
-                return;
+                return IGNORE_COPY_OTHER_IS_NEWER;
             }
         }
-        copyFile(thisFile, otherFile);
+        return copyFile(thisFile, otherFile);
     }
 
-    private void dropAge(SyncFile thisFile, SyncFile otherFile) {
-        if (thisFile.lastModified() == otherFile.lastModified()) {
-            LogU.infoPlain("Same age, ignore");
-            return;
-        }
+    private OpsResultType dropAge(SyncFile thisFile, SyncFile otherFile) {
+        if (thisFile.lastModified() == otherFile.lastModified()) { return IGNORE_COPY_SAME_AGE; }
         if (thisFile.lastModified() < otherFile.lastModified()) {
             otherFile.setLastModified(thisFile.lastModified());
-            LogU.infoPlain("Dropped age of: %s -> %s",otherFile.toPath(), otherFile.lastModified());
+            return OK_DROPPED_AGE_TO;
         } else {
             thisFile.setLastModified(otherFile.lastModified());
-            LogU.infoPlain("Dropped age of: %s -> %s",thisFile.toPath(), thisFile.lastModified());
+            return OK_DROPPED_AGE_FROM;
         }
     }
 
-    private void copyFile(SyncFile thisFile, SyncFile otherFile) {
+    private OpsResultType copyFile(SyncFile thisFile, SyncFile otherFile) {
         if (!otherFile.getParentFile().exists()) {
-            try {
-                FileUtils.createParentDirectories(otherFile);
-            } catch (IOException e) {
-                LogU.warnPlain("Could not create Parent");
-            }
+            try { FileUtils.createParentDirectories(otherFile); }
+            catch (IOException e) { return WARN_COULD_NOT_CREATE_PARENT; }
         }
         var thisFc = LockKeeper.getFc(thisFile.toPath());
         var otherFc = LockKeeper.getFc(otherFile.toPath());
         try (
-            var is = Channels.newInputStream(thisFc) ;
+            var is = Channels.newInputStream(thisFc);
             var os = Channels.newOutputStream(otherFc)
         ) {
             copyStream(is, os);
         } catch (Exception e) {
-            LogU.warnPlain("Could not copy file from: %s", thisFile.toPath());
-            LogU.warnPlain("                      to: %s", otherFile.toPath());
             e.printStackTrace();
+            return WARN_COULD_NOT_COPY;
         }
-
-        LogU.infoPlain(thisFile.toPath() + " "+ thisFile.lastModified());
-        LogU.infoPlain(otherFile.toPath() + " " + otherFile.lastModified());
         otherFile.setLastModified(thisFile.lastModified());
-        LogU.infoPlain(otherFile.toPath() + " " + otherFile.lastModified());
+        return OK_COPY;
     }
 
     public static void copyStream(InputStream input, OutputStream output)
-        throws IOException
-    {
+        throws IOException {
         byte[] buffer = new byte[262144];
         int bytesRead;
-        while ((bytesRead = input.read(buffer)) != -1)
-        {
+        while ((bytesRead = input.read(buffer)) != -1) {
             output.write(buffer, 0, bytesRead);
         }
     }
