@@ -1,19 +1,16 @@
 package com.olexyn.ensync;
 
-import com.olexyn.ensync.artifacts.SyncFile;
-import com.olexyn.ensync.lock.LockKeeper;
-
-import java.io.*;
+import java.io.BufferedReader;
+import java.io.BufferedWriter;
+import java.io.File;
+import java.io.FileWriter;
+import java.io.IOException;
 import java.nio.channels.Channels;
 import java.nio.channels.FileChannel;
 import java.nio.charset.StandardCharsets;
-import java.nio.file.Files;
-import java.nio.file.Paths;
 import java.util.ArrayList;
-import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
-import java.util.Map;
 import java.util.Set;
 
 public class Tools {
@@ -51,7 +48,7 @@ public class Tools {
     }
 
 
-    public Set<String> setMinus(Set<String> fromA, Set<String> subtractB) {
+    public static Set<String> setMinus(Set<String> fromA, Set<String> subtractB) {
         Set<String> difference = new HashSet<>();
         for (var key : fromA) {
             if (fromA.contains(key) && !subtractB.contains(key)) {

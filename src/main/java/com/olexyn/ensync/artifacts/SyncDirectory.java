@@ -2,6 +2,7 @@ package com.olexyn.ensync.artifacts;
 
 import com.olexyn.ensync.Tools;
 import com.olexyn.ensync.lock.LockKeeper;
+import com.olexyn.ensync.util.HashUtil;
 import com.olexyn.ensync.util.IgnoreUtil;
 import com.olexyn.min.log.LogU;
 import org.apache.commons.io.FileUtils;
@@ -10,11 +11,9 @@ import java.io.File;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
-import java.math.BigInteger;
 import java.nio.channels.Channels;
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.security.MessageDigest;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.HashMap;
@@ -90,7 +89,7 @@ public class SyncDirectory {
      * List is cleared and created each time.
      */
     public Map<String, SyncFile> fillListOfLocallyCreatedFiles(Map<String, SyncFile> listFileSystem, Record record) {
-        var listCreated = tools.setMinus(listFileSystem.keySet(), record.getFiles().keySet());
+        var listCreated = Tools.setMinus(listFileSystem.keySet(), record.getFiles().keySet());
         return listCreated.stream().collect(Collectors.toMap(key -> key, listFileSystem::get));
     }
 
@@ -98,8 +97,8 @@ public class SyncDirectory {
      * Compare the OLD and NEW pools.
      * List is cleared and created each time.
      */
-    public Map<String, RecordFile> makeListOfLocallyDeletedFiles(Map<String, SyncFile> listFileSystem, Record record) {
-        var listDeleted = tools.setMinus(record.getFiles().keySet(), listFileSystem.keySet());
+    public Map<String, SyncFile> makeListOfLocallyDeletedFiles(Map<String, SyncFile> listFileSystem, Record record) {
+        var listDeleted = Tools.setMinus(record.getFiles().keySet(), listFileSystem.keySet());
         return listDeleted.stream().collect(Collectors.toMap(key -> key, key -> record.getFiles().get(key)));
     }
 
@@ -165,7 +164,7 @@ public class SyncDirectory {
         }
     }
 
-    public void doDeleteOpsOnOtherSDs(Map<String, RecordFile> listDeleted) {
+    public void doDeleteOpsOnOtherSDs(Map<String, SyncFile> listDeleted) {
         int deleteCount = 0;
         for (var deletedFile : listDeleted.values()) {
             for (var otherFile : otherFiles(deletedFile)) {
@@ -196,7 +195,7 @@ public class SyncDirectory {
      * Here the >= is crucial, since otherFile might have == modified,
      * but in that case we still want to delete both files.
      */
-    private boolean deleteFileIfNewer(RecordFile thisFile, SyncFile otherFile) {
+    private boolean deleteFileIfNewer(SyncFile thisFile, SyncFile otherFile) {
         if (!otherFile.exists()) {
             LogU.infoPlain("Not deleted (not found) " + otherFile.toPath() + " not found.");
             return false;
