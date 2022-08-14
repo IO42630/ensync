@@ -4,6 +4,7 @@ import com.olexyn.ensync.artifacts.DataRoot;
 import com.olexyn.ensync.artifacts.Record;
 import com.olexyn.ensync.artifacts.SyncDirectory;
 import com.olexyn.ensync.lock.LockKeeper;
+import com.olexyn.ensync.util.TraceUtil;
 import com.olexyn.min.log.LogU;
 
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -65,20 +66,38 @@ public class Flow implements Runnable {
         record.getFiles().putAll(sDir.readRecord());
         LogU.infoPlain("# Record:   %s", record.getFiles().size());
 
-        var listCreated = sDir.fillListOfLocallyCreatedFiles(listFileSystem, record);
-        var listDeleted = sDir.makeListOfLocallyDeletedFiles(listFileSystem, record);
-        var listModified = sDir.makeListOfLocallyModifiedFiles(listFileSystem, record);
-        Tools tools = new Tools();
-        int newly = tools.setMinus(listCreated.keySet(), listDeleted.keySet()).size();
-        LogU.infoPlain("# Created:  %s\n   thereof newly created (not mv) %s", listCreated.size(), newly);
-        LogU.infoPlain("# Deleted:  %s", listDeleted.size());
-        LogU.infoPlain("# Modified: %s", listModified.size());
+        var mapCreated = sDir.fillListOfLocallyCreatedFiles(listFileSystem, record);
+        var mapDeleted = sDir.makeListOfLocallyDeletedFiles(listFileSystem, record);
+        var mapModified = sDir.makeListOfLocallyModifiedFiles(listFileSystem, record);
 
-        sDir.doCreateOpsOnOtherSDs(listCreated);
-        sDir.doDeleteOpsOnOtherSDs(listDeleted);
-        sDir.doModifyOpsOnOtherSDs(listModified);
+        var setCreatedNames = TraceUtil.fileNameSet(mapCreated);
+        var setDeletedNames = TraceUtil.fileNameSet(mapCreated);
+        var setCreatedNamesNew = Tools.setMinus(setCreatedNames, setDeletedNames);
+        var setDeletedNamesFinal = Tools.setMinus(setDeletedNames, setCreatedNames);
 
-        sDir.writeRecord(record);
+        LogU.infoPlain("# CREATED:  %s", mapCreated.size());
+        LogU.infoPlain("    thereof unique         %s", setCreatedNames.size());
+        LogU.infoPlain("    thereof new            %s", setCreatedNamesNew.size());
+        var createdByMove = setCreatedNames.size() - setCreatedNamesNew.size();
+        LogU.infoPlain("    thereof by mv          %s", createdByMove);
+        LogU.infoPlain("# DELETED:  %s", mapDeleted.size());
+        LogU.infoPlain("    thereof unique         %s", setDeletedNames.size());
+        LogU.infoPlain("    thereof finally        %s", setDeletedNamesFinal.size());
+        var deletedByMove = setDeletedNames.size() - setDeletedNamesFinal.size();
+        LogU.infoPlain("    thereof by mv          %s", deletedByMove);
+        LogU.infoPlain("# MODIFIED: %s", mapModified.size());
+        if (createdByMove == deletedByMove) {
+            LogU.infoPlain("(created by mv == deleted by mv) -> EXECUTE OPS");
+            sDir.doCreateOpsOnOtherSDs(mapCreated);
+            sDir.doDeleteOpsOnOtherSDs(mapDeleted);
+            sDir.doModifyOpsOnOtherSDs(mapModified);
+            sDir.writeRecord(record);
+        } else {
+            LogU.warnPlain("(created by mv != deleted by mv) -> ABORT");
+        }
+
+
+
     }
 
     /**
