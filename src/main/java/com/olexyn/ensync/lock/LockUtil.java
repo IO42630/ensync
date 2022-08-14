@@ -3,6 +3,8 @@ package com.olexyn.ensync.lock;
 import com.olexyn.min.log.LogU;
 
 import java.io.IOException;
+import java.io.PrintWriter;
+import java.io.StringWriter;
 import java.nio.channels.FileChannel;
 import java.nio.channels.OverlappingFileLockException;
 import java.nio.file.Path;
@@ -22,7 +24,12 @@ public class LockUtil {
             var fc = FileChannel.open(filePath, CREATE_NEW, WRITE);
             return new FcState(filePath, fc, false);
         } catch (IOException | OverlappingFileLockException e) {
-            LogU.warnPlain("Could not NEW %s\n%s", filePath, e.getMessage());
+            var writer = new PrintWriter(new StringWriter());
+            e.printStackTrace(writer);
+            writer.flush();
+            LogU.warnPlain("Could not NEW %s", filePath, e.getMessage());
+            LogU.warnPlain(writer.toString());
+            e.printStackTrace();
             return new FcState(filePath, null, false);
         }
     }

@@ -18,7 +18,7 @@ public class MainApp {
     final private static Tools TOOLS = new Tools();
 
     public static void main(String[] args) throws JSONException {
-        LogU.remake(null, "com.olexyn.ensync.", "[%1$tF %1$tT] [%2$-7s] [%3$-10s] %4$-180s [%5$s]\n");
+        LogU.remake(null, "com.olexyn.ensync.", "[%1$tF %1$tT] [%2$-7s] [%3$-14s] %4$-180s [%5$s]\n");
 
         var configPath = Path.of(System.getProperty("user.dir") + "/src/main/resources/config.json");
         String configString = Tools.fileToString(LockUtil.lockFile(configPath).getFc());
