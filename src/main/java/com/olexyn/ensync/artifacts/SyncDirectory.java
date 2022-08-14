@@ -108,7 +108,6 @@ public class SyncDirectory {
      * List is cleared and created each time.
      */
     public Map<String, SyncFile> makeListOfLocallyModifiedFiles(Map<String, SyncFile> listFileSystem, Record record) {
-
         return listFileSystem.entrySet().stream().filter(
             fileEntry -> {
                 String fileKey = fileEntry.getKey();
@@ -119,23 +118,6 @@ public class SyncDirectory {
                 return isKnown && isModified;
             }
         ).collect(Collectors.toMap(Entry::getKey, Entry::getValue));
-    }
-
-    private String getHash(Path path) {
-        var thisFc = LockKeeper.getFc(path);
-        try (var is = Channels.newInputStream(thisFc)) {
-            var m = MessageDigest.getInstance("SHA256");
-            byte[] buffer = new byte[262144];
-            int bytesRead;
-            while ((bytesRead = is.read(buffer)) != -1) {
-                m.update(buffer, 0, bytesRead);
-            }
-            var i = new BigInteger(1, m.digest());
-            return String.format("%1$032X", i);
-        } catch (Exception e) {
-            LogU.warnPlain("Failed to create Hash.\n%s", e.getMessage());
-            return null;
-        }
     }
 
     /**
@@ -241,8 +223,8 @@ public class SyncDirectory {
         LogU.infoPlain("            to: "  + otherFile.toPath());
         if (!thisFile.isFile()) { return; }
         if (otherFile.exists()) {
-            var thisHash = getHash(thisFile.toPath());
-            var otherHash = getHash(otherFile.toPath());
+            var thisHash = HashUtil.getHash(thisFile.toPath());
+            var otherHash = HashUtil.getHash(otherFile.toPath());
             if (thisHash == null || otherHash == null) { return; }
             if (thisHash.equals(otherHash)) {
                 dropAge(thisFile, otherFile);
