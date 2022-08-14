@@ -17,7 +17,7 @@ import java.util.stream.Collectors;
 
 public class Flow implements Runnable {
 
-    public static final long POLLING_PAUSE = 100;
+    public static final long POLLING_PAUSE = 1000;
     private final AtomicBoolean running = new AtomicBoolean(false);
 
     public void start() {
@@ -63,7 +63,7 @@ public class Flow implements Runnable {
      *
      */
     private void sync(SyncDirectory sDir) {
-        LogU.infoPlain("DO SYNC %s", sDir.directoryPath);
+        LogU.infoStart("SYNC %s", sDir.directoryPath);
         var listFileSystem = sDir.readFileSystem();
         LogU.infoPlain("# FS:       %s", listFileSystem.size());
         var record = new Record(sDir.directoryPath);
@@ -75,7 +75,7 @@ public class Flow implements Runnable {
         var mapModified = sDir.makeListOfLocallyModifiedFiles(listFileSystem, record);
 
         var setCreatedNames = TraceUtil.fileNameSet(mapCreated);
-        var setDeletedNames = TraceUtil.fileNameSet(mapCreated);
+        var setDeletedNames = TraceUtil.fileNameSet(mapDeleted);
         var setCreatedNamesNew = Tools.setMinus(setCreatedNames, setDeletedNames);
         var setDeletedNamesFinal = Tools.setMinus(setDeletedNames, setCreatedNames);
 
@@ -92,7 +92,6 @@ public class Flow implements Runnable {
         LogU.infoPlain("# MODIFIED: %s", mapModified.size());
         if (createdByMove == deletedByMove) {
             LogU.infoPlain("(created by mv == deleted by mv) -> EXECUTE OPS");
-            LogU.infoPlain("RESULTS:");
             var createResults = sDir.doCreateOpsOnOtherSDs(mapCreated);
             printResults(createResults);
             var deleteResults = sDir.doDeleteOpsOnOtherSDs(mapDeleted);
@@ -103,6 +102,7 @@ public class Flow implements Runnable {
         } else {
             LogU.warnPlain("(created by mv != deleted by mv) -> ABORT");
         }
+        LogU.infoEnd("SYNC %s", sDir.directoryPath);
     }
 
     private void printResults(Map<OpsResultType, List<FileMove>> map) {
